@@ -1,9 +1,9 @@
 import { useState } from "react";
 import "./login_css_vals.css";
 
-import SignIn from "./frontend/components/SignIn";
-import VolunteerForm from "./frontend/components/VolunteerForm";
-import OrgForm from "./frontend/components/OrgForm";
+import SignIn from "./components/SignIn";
+import VolunteerForm from "./components/VolunteerForm";
+import OrgForm from "./components/OrgForm";
 
 export default function App() {
   const [tab, setTab] = useState("signin");

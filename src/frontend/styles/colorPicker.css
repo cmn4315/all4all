@@ -1,0 +1,134 @@
+.a4a-color-picker-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.a4a-color-add-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.a4a-color-wheel {
+  width: 40px;
+  height: 40px;
+  border-radius: 9px;
+  border: 1.5px solid #e2e8f0;
+  cursor: pointer;
+  padding: 2px;
+  background: #fafafa;
+  flex-shrink: 0;
+}
+
+.a4a-color-wheel::-webkit-color-swatch-wrapper {
+  padding: 0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.a4a-color-wheel::-webkit-color-swatch {
+  border: none;
+  border-radius: 6px;
+}
+
+.a4a-hex-wrap {
+  position: relative;
+  flex: 1;
+}
+
+.a4a-hex-preview {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  border: 1px solid #e2e8f0;
+  pointer-events: none;
+}
+
+.a4a-add-btn {
+  padding: 9px 14px;
+  border-radius: 9px;
+  border: none;
+  background: #16a34a;
+  color: #fff;
+  font-weight: 700;
+  font-size: 12.5px;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+}
+
+.a4a-add-btn:hover:not(:disabled) { opacity: 0.88; }
+
+.a4a-add-btn:disabled {
+  background: #e2e8f0;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.a4a-color-hint {
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.a4a-selected-colors {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 12px;
+  background: #f0fdf4;
+  border-radius: 9px;
+  border: 1px solid #bbf7d0;
+  align-items: center;
+}
+
+.a4a-color-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: #fff;
+  border-radius: 7px;
+  padding: 3px 7px 3px 5px;
+  border: 1px solid #e2e8f0;
+}
+
+.a4a-color-chip__swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  flex-shrink: 0;
+}
+
+.a4a-color-chip__hex {
+  font-size: 11px;
+  color: #475569;
+  font-weight: 600;
+  font-family: monospace;
+}
+
+.a4a-color-chip__remove {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  font-size: 14px;
+  padding: 0 0 0 1px;
+  line-height: 1;
+  font-weight: 700;
+  transition: color 0.15s;
+}
+
+.a4a-color-chip__remove:hover { color: #ef4444; }
+
+.a4a-color-count {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-left: auto;
+}
