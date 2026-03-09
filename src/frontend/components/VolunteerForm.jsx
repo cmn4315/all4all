@@ -8,7 +8,6 @@ import { validateUsernameFormat, isUsernameAvailable,
   validateZip, validatePassword,
 } from "../../backend/login_utils/validators";
 import { getPasswordStrength } from "../../backend/login_utils/passwordStrength";
-import { _users, _emails, delay } from "../../backend/login_utils/store";
 
 export default function VolunteerForm({ onSwitch }) {
     const firstName = useAsync((v) => (!v?.trim() ? "First name is required." : v.trim().length < 2 ? "Too short." : null), null, "");
@@ -60,7 +59,7 @@ export default function VolunteerForm({ onSwitch }) {
 
         if(errors.length){
             setSubmitErr("Please fix the errors above."); 
-            eturn; 
+            return; 
         }
 
         if(username.checking || email.checking){ 
@@ -70,18 +69,39 @@ export default function VolunteerForm({ onSwitch }) {
 
         setLoading(true); 
         setSubmitErr(null);
-        await delay(500);
 
+        try {
+            const res = await fetch("/api/registerVolunteer", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    username: username.val,
+                    email: email.val,
+                    password: password,
+                    firstName: firstName.val,
+                    lastName: lastName.val,
+                    phone: phoneRaw,
+                    zip: zip
+                }),
+            });
 
-        _users.set(username.val.toLowerCase(), {
-            firstName: firstName.val, lastName: lastName.val,
-            username: username.val, email: email.val,
-            phone: phoneRaw, password, zip,
-        });
-    
-            _emails.add(email.val.toLowerCase());
-        setLoading(false); 
-        setSuccess(true);
+            if (!res.ok) {
+                throw new Error("Failed to register");
+            }
+
+            const data = await res.json();
+            console.log("Created user id:", data.id);
+
+            setSuccess(true);
+
+        } catch (err) {
+            console.error(err);
+            setSubmitErr("Failed to create account. Please try again.");
+        }
+
+        setLoading(false);
     }
 
     if (success) return (

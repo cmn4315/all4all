@@ -34,9 +34,23 @@ export function validateEmail(e) {
     return null;
 }
 
-export async function isEmailAvailable(e) {
-    await delay();
-    return !_emails.has(e.toLowerCase()) && !_orgEmails.has(e.toLowerCase());
+export async function isEmailAvailable(email) {
+    try {
+        const res = await fetch(
+            `/api/checkEmail?email=${encodeURIComponent(email)}`
+        );
+
+        if (!res.ok) {
+            throw new Error("Failed to check email");
+        }
+
+        const data = await res.json();
+        return data.available;
+
+    } catch (err) {
+        console.error("Email check failed:", err);
+        return false;
+    }
 }
 
 // phone number 

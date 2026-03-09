@@ -9,7 +9,6 @@ import {
   validatePhone, formatPhone,
   validateZip,
 } from "../../backend/login_utils/validators";
-import { _orgUsernames, _orgEmails, delay } from "../../backend/login_utils/store";
 
 export default function OrgForm({ onSwitch }) {
     const username = useAsync(validateUsernameFormat, isUsernameAvailable, "Username already taken.");
@@ -75,16 +74,38 @@ export default function OrgForm({ onSwitch }) {
 
         setLoading(true); 
         setSubmitErr(null);
-        await delay(500);
 
-        _orgUsernames.set(username.val.toLowerCase(), {
-            bizName, username: username.val, email: email.val,
-            phone: phoneRaw, zip, address, motto, colors: selectedColors,
-        });
-        
-        _orgEmails.add(email.val.toLowerCase());
-        setLoading(false); 
-        setSuccess(true);
+        try {
+            const res = await fetch("/api/registerOrg", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    name: username.val,
+                    email: email.val,
+                    phone: phoneRaw,
+                    description: "description", //TODO: orgs need descriptions in the db
+                    password: "1234", //TODO: do organizations need passwords too? Org needs user_id and user needs password
+                    category_id: "1" //TODO: require user input for organization category (based on options in db)
+                }),
+            });
+
+            if (!res.ok) {
+                throw new Error("Failed to register");
+            }
+
+            const data = await res.json();
+            console.log("Created user id:", data.id);
+
+            setSuccess(true);
+
+        } catch (err) {
+            console.error(err);
+            setSubmitErr("Failed to create account. Please try again.");
+        }
+
+        setLoading(false);
     }
 
     if (success) return (
