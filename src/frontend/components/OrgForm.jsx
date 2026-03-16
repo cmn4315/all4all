@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import Field from "./shared/Field";
 import TextInput from "./shared/TextInput";
 import ColorWheelPicker from "./ColorWheelPicker";
@@ -7,8 +7,10 @@ import {
   validateUsernameFormat, isUsernameAvailable,
   validateEmail, isEmailAvailable,
   validatePhone, formatPhone,
-  validateZip,
+  validateZip, validatePassword,
 } from "../../backend/login_utils/validators";
+import { getPasswordStrength } from "../../backend/login_utils/passwordStrength";
+
 
 export default function OrgForm({ onSwitch }) {
     const username = useAsync(validateUsernameFormat, isUsernameAvailable, "Username already taken.");
@@ -20,12 +22,22 @@ export default function OrgForm({ onSwitch }) {
     const [phoneRaw, setPhoneRaw] = useState(""); 
     const [phoneErr, setPhoneErr] = useState(null);
 
+    const [password,setPassword] = useState("");
+    const [passErr, setPassErr] = useState(null);
+    const [showPass, setShowPass]= useState(false);
+    const [confirmErr, setConfirmErr] = useState(null);
+    const str = getPasswordStrength(password);
+
     const [zip, setZip] = useState(""); 
     const [zipErr, setZipErr] = useState(null);
 
     const [address, setAddress] = useState("");
     const [motto, setMotto] = useState(""); 
     const [mottoErr, setMottoErr] = useState(null);
+
+    const [categories, setCategories] = useState([]);
+    const [categoryId, setCategoryId] = useState("");
+    const [categoryErr, setCategoryErr] = useState("");
 
     const [selectedColors,setSelectedColors] = useState([]);
     const [logoPreview,setLogoPreview] = useState(null);
@@ -34,6 +46,15 @@ export default function OrgForm({ onSwitch }) {
     const [success, setSuccess] = useState(false);
     const [submitErr, setSubmitErr] = useState(null);
 
+
+    useEffect(() => {
+        fetch("/api/orgCategories")
+            .then((res) => res.json())
+            .then((data) => setCategories(data))
+            .catch(() => setCategoryErr("Could not load categories."));
+    }, []);
+
+    
     function handlePhone(e) {
         const f = formatPhone(e.target.value);
         setPhoneRaw(f); 
@@ -50,6 +71,19 @@ export default function OrgForm({ onSwitch }) {
         reader.readAsDataURL(file);
     }
 
+    function handlePassword(e) {
+        setPassword(e.target.value);
+        setPassErr(validatePassword(e.target.value));
+        if(confirm){
+            setConfirmErr(e.target.value !== confirm ? "Passwords do not match." : null);
+        }
+    }
+
+    function handleConfirm(e) {
+        setConfirm(e.target.value);
+        setConfirmErr(password !== e.target.value ? "Passwords do not match." : null);
+    }
+
     async function handleSubmit() {
         const bErr = !bizName.trim() ? "Business name is required." : null;
         const mErr = !motto.trim()
@@ -58,9 +92,15 @@ export default function OrgForm({ onSwitch }) {
         setBizErr(bErr); 
         setMottoErr(mErr);
 
+        const cErr = !categoryId ? "Please select a category." : null;
+        setCategoryErr(cErr);
+
         const errors = [
             username.err, bErr, email.err,
             validatePhone(phoneRaw), validateZip(zip), mErr,
+            validatePassword(password),
+            password !== confirm ? "mismatch" : null,
+            cErr, 
         ].filter(Boolean);
 
         if(errors.length){ 
@@ -86,8 +126,8 @@ export default function OrgForm({ onSwitch }) {
                     email: email.val,
                     phone: phoneRaw,
                     description: motto.val, //TODO: orgs need descriptions in the db
-                    password: "1234", //TODO: do organizations need passwords too? Org needs user_id and user needs password
-                    category_id: "1" //TODO: require user input for organization category (based on options in db)
+                    password: password, //TODO: do organizations need passwords too? Org needs user_id and user needs password
+                    category_id: categoryId //TODO: require user input for organization category (based on options in db)
                 }),
             });
 
@@ -145,6 +185,39 @@ export default function OrgForm({ onSwitch }) {
             </div>
 
             <div className="a4a-row">
+                <Field label="Password *" error={passErr}>
+                    <div className="a4a-pass-wrap">
+                        <input
+                        type={showPass ? "text" : "password"}
+                        value={password}
+                        onChange={handlePassword}
+                        placeholder="Create a password"
+                        className={`a4a-input${passErr ? " error" : ""}`}
+                        autoComplete="new-password"
+                    />
+                    <button type="button" className="a4a-eye-btn" onClick={() => setShowPass((s) => !s)}>
+                        {showPass ? "" : ""}
+                    </button>
+                </div>
+                {password && (
+                    <>
+                        <div className="a4a-strength-bar">
+                            <div className="a4a-strength-fill" style={{ width: `${str.pct}%`, background: str.color }} />
+                        </div>
+                        <div className="a4a-strength-meta">
+                            <span className="a4a-strength-label" style={{ color: str.color }}>{str.label}</span>
+                            <span className="a4a-strength-score">{str.score}/6</span>
+                        </div>
+                    </>
+                )}
+                </Field>
+                <Field label="Confirm Password *" error={confirmErr}>
+                    <TextInput value={confirm} onChange={handleConfirm} placeholder="Repeat password" type="password" error={confirmErr} />
+                </Field>
+            </div>
+            
+
+            <div className="a4a-row">
                 <Field label="ZIP Code *" error={zipErr}>
                 <TextInput
                     value={zip}
@@ -185,6 +258,24 @@ export default function OrgForm({ onSwitch }) {
             <ColorWheelPicker selectedColors={selectedColors} onChange={setSelectedColors} />
 
             <hr className="a4a-divider" />
+            
+            <Field label="Organization Category *" error={categoryErr}>
+                <select
+                    value={categoryId}
+                    onChange={(e) => {
+                        setCategoryId(e.target.value);
+                        setCategoryErr(!e.target.value ? "Please select a category." : null);
+                    }}
+                    className={`a4a-input${categoryErr ? " error" : ""}`}
+                >
+                    <option value="">— Select a category —</option>
+                    {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                            {cat.name}
+                        </option>
+                    ))}
+                </select>
+            </Field>
 
             <label className="a4a-label" style={{ display: "block" }}>Organization Logo (optional)</label>
             <div className="a4a-logo-row">

@@ -53,7 +53,7 @@ export default function SignIn({ onSwitch }) {
         <TextInput
           value={username}
           onChange={(e) => setUsername(e.target.value)}
-          placeholder="your_username"
+          placeholder="Your Username"
         />
       </Field>
 
@@ -62,7 +62,7 @@ export default function SignIn({ onSwitch }) {
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Your password"
+          placeholder="Your Password"
           className="a4a-input"
         />
       </Field>
