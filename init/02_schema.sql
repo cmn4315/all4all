@@ -14,6 +14,7 @@ CREATE TYPE event_status AS ENUM ('DRAFT', 'PUBLISHED', 'CANCELLED', 'COMPLETED'
 -- Role is Volunteers or Organizations.
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
     role user_role NOT NULL
