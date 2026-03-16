@@ -17,7 +17,9 @@ CREATE TABLE users (
     username TEXT NOT NULL UNIQUE,
     email TEXT NOT NULL UNIQUE,
     password_hash TEXT NOT NULL,
-    role user_role NOT NULL
+    phone_number TEXT,
+    role user_role NOT NULL,
+    image_url TEXT -- URL to stored image
 );
 
 
@@ -35,9 +37,10 @@ CREATE TABLE organizations (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
-    phone_number TEXT,
     description TEXT NOT NULL, -- public description of the organization, on profile
-    category_id INTEGER NOT NULL REFERENCES org_categories(id) -- Each organization belongs to one category.
+    category_id INTEGER NOT NULL REFERENCES org_categories(id), -- Each organization belongs to one category.
+    zip_code TEXT NOT NULL,
+    address TEXT
 );
 
 
@@ -46,8 +49,8 @@ CREATE TABLE volunteers (
     id SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
     full_name TEXT NOT NULL,
-    phone_number TEXT,
-    bio TEXT -- Profile bio shown on volunteer page.
+    bio TEXT, -- Profile bio shown on volunteer page.
+    zip_code TEXT
 );
 
 
