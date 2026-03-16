@@ -1,8 +1,8 @@
 import { useState, useRef } from "react";
-import Field from "./shared/Field";
 import TextInput from "./shared/TextInput";
 import ColorWheelPicker from "./ColorWheelPicker";
 import { useAsync } from "../../backend/login_utils/useAsync";
+import { useAuth } from "../../backend/login_utils/AuthContext";
 import {
   validateUsernameFormat, isUsernameAvailable,
   validateEmail, isEmailAvailable,
@@ -85,15 +85,10 @@ export default function OrgForm({ onSwitch }) {
         _orgEmails.add(email.val.toLowerCase());
         setLoading(false); 
         setSuccess(true);
-    }
 
-    if (success) return (
-        <div className="a4a-success">
-        Organization registered!<br />
-        <strong>{bizName}</strong> is now part of All4All.<br />
-        <span>Start connecting with volunteers today.</span>
-        </div>
-    );
+        login(newOrg);
+        onNavigate("main");
+    }
 
     return (
         <div>
