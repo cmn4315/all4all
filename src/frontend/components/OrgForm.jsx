@@ -85,7 +85,7 @@ export default function OrgForm({ onSwitch }) {
                     name: username.val,
                     email: email.val,
                     phone: phoneRaw,
-                    description: motto.val, //TODO: orgs need descriptions in the db
+                    description: motto.val, 
                     password: "1234", //TODO: do organizations need passwords too? Org needs user_id and user needs password
                     category_id: "1" //TODO: require user input for organization category (based on options in db)
                 }),
