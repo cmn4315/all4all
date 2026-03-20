@@ -137,6 +137,98 @@ app.get("/api/checkEmail", async (req, res) => {
 });
 
 /*
+  Register a new event (available for any organization account to do)
+  Create all new events as DRAFT first, user must explicitly set a different status later (PUBLISH, etc.)
+*/
+app.post("/api/events", async (req, res) => {
+  const client = await pool.connect();
+
+  try {
+    const { organization_id, name, description, start_time, end_time, address, city, state, zip_code } = req.body;
+
+    const result = await client.query(
+      `INSERT INTO events (organization_id,name,description,start_time,end_time,address,city,state,zip_code) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
+      [ organization_id, name, description, start_time, end_time, address, city, state, zip_code ]
+    );
+
+    res.json({ id: result.rows[0].id });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  } finally {
+    client.release();
+  }
+});
+
+
+/*
+  Get all events with a PUBLISHED status
+  This is used for volunteer users to be able to view all events they could register for 
+*/
+app.get("/api/events", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM events WHERE status = 'PUBLISHED' ORDER BY start_time"
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+/*
+  Get a specific event by its ID 
+  This is meant for viewing the details of one specific event for both volunteers and organizations
+*/
+app.get("/api/events/:id", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM events WHERE id = $1",
+      [req.params.id]
+    );
+
+    //Specified event does not exist in the db
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+/*
+  Move the specified event's status from DRAFT (or other state) to PUBLISHED
+  PUBLISHED events can be viewed by volunteer users
+*/
+app.patch("/api/events/:id/publish", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "UPDATE events SET status = 'PUBLISHED' WHERE id = $1 RETURNING id",
+      [req.params.id]
+    );
+
+    //Specified event does not exist in the db
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    res.json({ success: true });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+/*
 * Fetch a user, based on login credentials
 */
 // app.get("/api/login", async (req, res) => {
