@@ -75,30 +75,30 @@ app.post("/api/registerVolunteer", async (req, res) => {
 */
 app.post("/api/registerOrg", async (req, res) => {
   const client = await pool.connect();
+  let transactionStarted = false;
 
   try {
-    // TODO: Differentiate between username and group name. name here is username
-    const { name, email, phone, description, password, category_id } = req.body;
-
-    if (!email || !password || !name) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
+    const { name, email, phone, description, password, category_id, zip_code } = req.body;
 
     await client.query("BEGIN");
+    transactionStarted = true;
 
-    const user_id = await createUser(client, name, email, password, "ORGANIZATION");
+    const user_id = await createUser(client, name, email, password, phone, "ORGANIZATION");
 
-    await client.query(
-      "INSERT INTO organizations(user_id,name,phone_number,description,category_id) VALUES($1,$2,$3,$4,$5)",
-      [user_id, name, phone, description, category_id]
+    const orgResult = await client.query(
+      `INSERT INTO organizations(user_id,name,description,category_id,zip_code) VALUES($1,$2,$3,$4,$5) RETURNING id`,
+      [user_id, name, description, category_id, zip_code]
     );
 
     await client.query("COMMIT");
+    transactionStarted = false;
 
-    res.json({ id: user_id });
+    res.json({ id: orgResult.rows[0].id });
 
   } catch (err) {
-    await client.query("ROLLBACK");
+    if (transactionStarted) {
+      await client.query("ROLLBACK");
+    }
 
     if (err.code === "23505") {
       return res.status(409).json({ error: "Email already exists" });
@@ -145,6 +145,10 @@ app.post("/api/events", async (req, res) => {
 
   try {
     const { organization_id, name, description, start_time, end_time, address, city, state, zip_code } = req.body;
+
+    if (!organization_id || !name || !description || !start_time || !end_time || !zip_code) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
 
     const result = await client.query(
       `INSERT INTO events (organization_id,name,description,start_time,end_time,address,city,state,zip_code) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
