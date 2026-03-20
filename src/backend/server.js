@@ -179,6 +179,31 @@ app.post("/api/events", async (req, res) => {
   }
 });
 
+/*
+  Update the details of an existing event
+  Can be used by organizations to update any and all details of their event, other than the organization id associated with it
+*/
+app.put("/api/events/:id", async (req, res) => {
+  try {
+    const { name, description, start_time, end_time, address, city, state, zip_code } = req.body;
+
+    const result = await pool.query(
+      `UPDATE events SET name = $1, description = $2, start_time = $3, end_time = $4, address = $5, city = $6, state = $7, zip_code = $8 WHERE id = $9 RETURNING id`,
+      [name, description, start_time, end_time, address, city, state, zip_code, req.params.id]
+    );
+
+    //Specified event id not found
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    res.json({ success: true });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
 
 /*
   Get all events with a PUBLISHED status
@@ -223,10 +248,44 @@ app.get("/api/events/:id", async (req, res) => {
 });
 
 /*
+  Get all of the events linked to the specified organization id
+  publishedOnly = false (default): Used for organizations to view all of their own events 
+  publishedOnly = true: Used for volunteers to view all published events for a specific organization (filter)
+
+  Examples:
+  Org 1:                          GET /api/organizations/1/events
+  Volunteer (filter for org 1):   GET /api/organizations/1/events?publishedOnly=true
+*/
+app.get("/api/organizations/:id/events", async (req, res) => {
+  try {
+    const { publishedOnly } = req.query;
+
+    let query = `SELECT * FROM events WHERE organization_id = $1`;
+
+    const params = [req.params.id];
+
+    //Only get published events (for volunteers to view)
+    if (publishedOnly === "true") {
+      query += ` AND status = 'PUBLISHED'`;
+    }
+
+    query += ` ORDER BY start_time`;
+
+    const result = await pool.query(query, params);
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+/*
   Move the specified event's status from DRAFT (or other state) to PUBLISHED
   PUBLISHED events can be viewed by volunteer users
 */
-app.patch("/api/events/:id/publish", async (req, res) => {
+app.put("/api/events/:id/publish", async (req, res) => {
   try {
     const result = await pool.query(
       "UPDATE events SET status = 'PUBLISHED' WHERE id = $1 RETURNING id",
@@ -236,6 +295,98 @@ app.patch("/api/events/:id/publish", async (req, res) => {
     //Specified event does not exist in the db
     if (result.rowCount === 0) {
       return res.status(404).json({ error: "Event not found" });
+    }
+
+    res.json({ success: true });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+/*
+  Cancel a specific event by its id
+*/
+app.put("/api/events/:id/cancel", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `UPDATE events SET status = 'CANCELLED' WHERE id = $1 RETURNING id`,
+      [req.params.id]
+    );
+
+    //Specified event was not found in the db
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    res.json({ success: true });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+/*
+  Allows a volunteer to register for a specific event provided that they have been able to view the event (to get its id)
+  For a volunteer to register for an event, the event must be PUBLISHED at the time of registration
+*/
+app.post("/api/events/:id/register", async (req, res) => {
+  try {
+    const { volunteer_id } = req.body;
+    const event_id = req.params.id;
+
+    //Check event exists and is published
+    const eventResult = await pool.query(
+      "SELECT status FROM events WHERE id = $1",
+      [event_id]
+    );
+
+    //Specified event not found
+    if (eventResult.rowCount === 0) {
+      return res.status(404).json({ error: "Event not found" });
+    }
+
+    //Event's status is any other than PUBLISHED
+    if (eventResult.rows[0].status !== "PUBLISHED") {
+      return res.status(400).json({ error: "Event is not open for registration" });
+    }
+
+    //Register volunteer
+    await pool.query(
+      `INSERT INTO event_registrations(event_id, volunteer_id) VALUES ($1, $2)`,
+      [event_id, volunteer_id]
+    );
+
+    res.json({ success: true });
+
+  } catch (err) {
+    if (err.code === "23505") {
+      return res.status(409).json({ error: "Volunteer already registered" });
+    }
+
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+/*
+  Allows volunteer users to be unregistered for an event
+  Volunteers can choose to remove a registration, or organizations could remove a volunteer from an event
+*/
+app.delete("/api/events/:id/register", async (req, res) => {
+  try {
+    const { volunteer_id } = req.body;
+
+    const result = await pool.query(
+      `DELETE FROM event_registrations WHERE event_id = $1 AND volunteer_id = $2`,
+      [req.params.id, volunteer_id]
+    );
+
+    //No record of the volunteer being registered for the specified event
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Registration not found" });
     }
 
     res.json({ success: true });
