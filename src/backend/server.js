@@ -69,6 +69,24 @@ app.post("/api/registerVolunteer", async (req, res) => {
   }
 });
 
+
+/*
+* Get OrgCategories, to show in the dropdown on accound creation page
+*/
+app.get("/api/orgCategories", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM org_categories"
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
 /*
   Register an organization (with an associated base user account)
   Org needs name, email, phone, password, and a category id 
