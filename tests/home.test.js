@@ -1,7 +1,14 @@
 const { Builder, By, until, Key } = require("selenium-webdriver");
+const chrome = require('selenium-webdriver/chrome');
 
 describe("Home Page", () => {
-  let driver = new Builder().forBrowser("chrome").build();
+  const options = new chrome.Options();
+  if (process.env.CI) {
+    options.addArguments('--headless');
+  }
+  options.addArguments('--no-sandbox');
+  options.addArguments('--disable-dev-shm-usage');
+  let driver = new Builder().forBrowser('chrome').setChromeOptions(options).build();
 
   // stop the tests after every test has been run
   afterAll(async () => {
