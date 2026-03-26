@@ -1,11 +1,11 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import { pool } from "./db.js";
-// import jwt from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 
 // For using env variables (i.e. JWT_SECRET for tokens)
-// import dotenv from "dotenv";
-// dotenv.config();
+import dotenv from "dotenv";
+dotenv.config();
 
 const app = express();
 app.use(express.json());
@@ -137,42 +137,44 @@ app.get("/api/checkEmail", async (req, res) => {
 });
 
 /*
-* Fetch a user, based on login credentials
+* login the user, returning a token or 401 on invalid credentials
 */
-// app.get("/api/login", async (req, res) => {
-//   try {
-//     const { username, password } = req.query;
+app.post("/api/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
 
-//     const result = await pool.query(
-//       "SELECT id, email, password_hash, user_role FROM users WHERE username = $1 LIMIT 1",
-//       [username]
-//     );
+    const result = await pool.query(
+      "SELECT id, email, password_hash, role FROM users WHERE username = $1 LIMIT 1",
+      [username]
+    );
 
-//     if (result.rowCount === 0 || !(await bcrypt.compare(password, result.rows[0].password_hash))) {
-//       res.status(401).send("Invalid email or password.");
-//     }
-//     const user_role = result.rows[0].user_role;
-//     const user_id = result.rows[0].id;
-//     const token = jwt.sign(
-//       { id: user_id, email: email, role: user_role },
-//       process.env.JWT_SECRET,
-//       { expiresIn: "7d" }
-//     );
+    if (result.rowCount === 0 || !(await bcrypt.compare(password, result.rows[0].password_hash))) {
+      res.status(401).send("Invalid username or password.");
+    } else {
+      const user_role = result.rows[0].role;
+      const user_id = result.rows[0].id;
+      const token = jwt.sign(
+        { id: user_id, role: user_role },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
 
-//     res.json({
-//       token,
-//       user: {
-//         id: user_id,
-//         username: username,
-//         email: result.rows[0].email,
-//         role: user_role
-//       }
-//     });
 
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).send("Database error");
-//   }
-// });
+      res.json({
+        token,
+        user: {
+          id: user_id,
+          username: username,
+          email: result.rows[0].email,
+          role: user_role
+        }
+      });
+    }
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
 
 export default app;

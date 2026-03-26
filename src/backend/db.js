@@ -4,7 +4,7 @@ const { Pool } = pkg;
 
 export const pool = new Pool({
   host: "localhost",
-  port: 5432,
+  port: 5433,
   user: "testuser",
   password: "testpass",
   database: "testdb"
