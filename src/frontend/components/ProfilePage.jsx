@@ -40,7 +40,6 @@ export default function ProfilePage() {
   // ── Avatar (volunteers only) ──
   const fileRef = useRef(null);
 
-  // ── Display name ──                        👇 ADD FROM HERE
   const [displayName, setDisplayName] = useState("");
 
   useEffect(() => {
@@ -55,8 +54,12 @@ export default function ProfilePage() {
         setForm(f => ({ ...f, firstName, lastName }));
       })
       .catch(err => console.error("Error fetching name:", err));
+
+      fetch(`/api/phone?user_id=${user.id}`)
+    .then(res => res.json())
+    .then(data => setForm(f => ({ ...f, phone: data.phone })))
+    .catch(err => console.error("Error fetching phone:", err));
   }, []);
-                                              // 👆 TO HERE
 
   const str = getPasswordStrength(newPass);
 
@@ -309,7 +312,7 @@ export default function ProfilePage() {
                     placeholder="(555) 123-4567"
                   />
                 ) : (
-                  <div className="prof-value">{user.phone || <span className="prof-value--muted">Not set</span>}</div>
+                  <div className="prof-value">{form.phone || <span className="prof-value--muted">Not set</span>}</div>
                 )}
               </Field>
               <Field label="ZIP Code" error={errors.zip}>
@@ -376,7 +379,7 @@ export default function ProfilePage() {
                     placeholder="(555) 000-0000"
                   />
                 ) : (
-                  <div className="prof-value">{user.phone || <span className="prof-value--muted">Not set</span>}</div>
+                  <div className="prof-value">{form.phone || <span className="prof-value--muted">Not set</span>}</div>
                 )}
               </Field>
               <Field label="ZIP Code" error={errors.zip}>

@@ -84,16 +84,16 @@ app.post("/api/registerOrg", async (req, res) => {
   let transactionStarted = false;
 
   try {
-    const { name, email, phone, description, password, category_id, zip_code } = req.body;
+    const { username, name, email, phone, description, password, category_id, zip_code } = req.body;
 
     await client.query("BEGIN");
     transactionStarted = true;
 
-    const user_id = await createUser(client, name, email, password, phone, "ORGANIZATION");
+    const user_id = await createUser(client, username, email, password, phone, "ORGANIZATION");
 
     const orgResult = await client.query(
-      `INSERT INTO organizations(user_id,name,description,category_id,zip_code) VALUES($1,$2,$3,$4,$5) RETURNING id`,
-      [user_id, name, description, category_id, zip_code]
+      `INSERT INTO organizations(user_id, name, description, category_id, zip_code) VALUES($1,$2,$3,$4,$5) RETURNING id`,
+      [user_id, name, description, category_id, zip_code]  
     );
 
     await client.query("COMMIT");
@@ -476,6 +476,37 @@ app.get("/api/full_name", async (req, res) => {
       name = result.rows[0].full_name;
     }
     res.json({ name });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+app.get("/api/phone", async (req, res) => {
+  try {
+    const { user_id } = req.query;
+    const result = await pool.query(
+      "SELECT phone_number FROM users WHERE id = $1",
+      [user_id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).send("User not found.");
+    }
+    res.json({ phone: result.rows[0].phone_number });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+app.get("/api/orgCategories", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM org_categories"
+    );
+
+    res.json(result.rows);
+
   } catch (err) {
     console.error(err);
     res.status(500).send("Database error");

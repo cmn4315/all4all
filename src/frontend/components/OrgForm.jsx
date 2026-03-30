@@ -25,6 +25,7 @@ export default function OrgForm({ onSwitch }) {
     const [password,setPassword] = useState("");
     const [passErr, setPassErr] = useState(null);
     const [showPass, setShowPass]= useState(false);
+    const [confirm, setConfirm] = useState("");
     const [confirmErr, setConfirmErr] = useState(null);
     const str = getPasswordStrength(password);
 
@@ -74,7 +75,7 @@ export default function OrgForm({ onSwitch }) {
     function handlePassword(e) {
         setPassword(e.target.value);
         setPassErr(validatePassword(e.target.value));
-        if(confirm){
+        if (confirmErr !== null) { // ✅ was if(confirm)
             setConfirmErr(e.target.value !== confirm ? "Passwords do not match." : null);
         }
     }
@@ -116,18 +117,22 @@ export default function OrgForm({ onSwitch }) {
         setSubmitErr(null);
 
         try {
+            console.log("bizName value:", bizName);
+            
             const res = await fetch("/api/registerOrg", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
-                    name: username.val,
+                    username: username.val,
+                    name: bizName,           // ✅ org name for the organizations table
                     email: email.val,
                     phone: phoneRaw,
-                    description: motto.val, //TODO: orgs need descriptions in the db
-                    password: password, //TODO: do organizations need passwords too? Org needs user_id and user needs password
-                    category_id: categoryId //TODO: require user input for organization category (based on options in db)
+                    description: motto,      // ✅ was motto.val
+                    password: password,
+                    zip_code: zip,           // ✅ was zip
+                    category_id: categoryId,
                 }),
             });
 
