@@ -1,11 +1,11 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import { pool } from "./db.js";
-// import jwt from "jsonwebtoken";
+import jwt from "jsonwebtoken";
 
 // For using env variables (i.e. JWT_SECRET for tokens)
-// import dotenv from "dotenv";
-// dotenv.config();
+import dotenv from "dotenv";
+dotenv.config();
 
 const app = express();
 app.use(express.json());
@@ -31,7 +31,7 @@ async function createUser(client, username, email, password, phone, role) {
 */
 app.post("/api/registerVolunteer", async (req, res) => {
   const client = await pool.connect();
-    let transactionStarted = false;
+  let transactionStarted = false;
 
 
   try {
@@ -72,6 +72,24 @@ app.post("/api/registerVolunteer", async (req, res) => {
 
   } finally {
     client.release();
+  }
+});
+
+
+/*
+* Get OrgCategories, to show in the dropdown on accound creation page
+*/
+app.get("/api/orgCategories", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM org_categories"
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
   }
 });
 
@@ -158,7 +176,7 @@ app.post("/api/events", async (req, res) => {
 
     const result = await client.query(
       `INSERT INTO events (organization_id,name,description,start_time,end_time,address,city,state,zip_code) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id`,
-      [ organization_id, name, description, start_time, end_time, address, city, state, zip_code ]
+      [organization_id, name, description, start_time, end_time, address, city, state, zip_code]
     );
 
     res.json({ id: result.rows[0].id });
@@ -181,7 +199,7 @@ app.put("/api/events/:id", async (req, res) => {
 
     const result = await pool.query(
       `UPDATE events SET name = $1, description = $2, start_time = $3, end_time = $4, address = $5, city = $6, state = $7, zip_code = $8 WHERE id = $9 RETURNING id`,
-      [ name, description, start_time, end_time, address, city, state, zip_code, req.params.id ]
+      [name, description, start_time, end_time, address, city, state, zip_code, req.params.id]
     );
 
     //Specified event id not found
@@ -239,8 +257,7 @@ app.get("/api/events/:id", async (req, res) => {
   }
 });
 
-/*
-  Get all of the events linked to the specified organization id
+/* Get all of the events linked to the specified organization id
   publishedOnly = false (default): Used for organizations to view all of their own events 
   publishedOnly = true: Used for volunteers to view all published events for a specific organization (filter)
 
@@ -390,42 +407,74 @@ app.delete("/api/events/:id/register", async (req, res) => {
 });
 
 /*
-* Fetch a user, based on login credentials
+* login the user, returning a token or 401 on invalid credentials
 */
-// app.get("/api/login", async (req, res) => {
-//   try {
-//     const { username, password } = req.query;
+app.post("/api/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
 
-//     const result = await pool.query(
-//       "SELECT id, email, password_hash, user_role FROM users WHERE username = $1 LIMIT 1",
-//       [username]
-//     );
+    const result = await pool.query(
+      "SELECT id, email, password_hash, role FROM users WHERE username = $1 LIMIT 1",
+      [username]
+    );
 
-//     if (result.rowCount === 0 || !(await bcrypt.compare(password, result.rows[0].password_hash))) {
-//       res.status(401).send("Invalid email or password.");
-//     }
-//     const user_role = result.rows[0].user_role;
-//     const user_id = result.rows[0].id;
-//     const token = jwt.sign(
-//       { id: user_id, email: email, role: user_role },
-//       process.env.JWT_SECRET,
-//       { expiresIn: "7d" }
-//     );
+    if (result.rowCount === 0 || !(await bcrypt.compare(password, result.rows[0].password_hash))) {
+      res.status(401).send("Invalid username or password.");
+    } else {
+      const user_role = result.rows[0].role;
+      const user_id = result.rows[0].id;
+      const token = jwt.sign(
+        { id: user_id, role: user_role },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
 
-//     res.json({
-//       token,
-//       user: {
-//         id: user_id,
-//         username: username,
-//         email: result.rows[0].email,
-//         role: user_role
-//       }
-//     });
 
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).send("Database error");
-//   }
-// });
+      res.json({
+        token,
+        user: {
+          id: user_id,
+          username: username,
+          email: result.rows[0].email,
+          role: user_role
+        }
+      });
+    }
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+/* Get number of registered volunteers for an event
+ */
+app.get("/api/events/:id/count", async (req, res) => {
+  try {
+    const event_id = req.params.id;
+
+    // Check event exists
+    const eventResult = await pool.query(
+      "SELECT status, organization_id FROM events WHERE id = $1",
+      [event_id]
+    );
+
+    if (eventResult.rowCount === 0) {
+      return result.status(404).send("Event not found");
+    }
+
+    let query = `SELECT COUNT(*) FROM event_registrations WHERE event_id = $1`;
+
+    const params = [req.params.id];
+
+    const result = await pool.query(query, params);
+    const count = parseInt(result.rows[0].count, 10);
+    res.json({ count });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
 
 export default app;

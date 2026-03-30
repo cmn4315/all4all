@@ -5,8 +5,8 @@ import { _users, delay } from "../../backend/login_utils/store";
 
 export default function SignIn({ onSwitch }) {
   const [username, setUsername] = useState("");
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [token, setToken] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -21,21 +21,35 @@ export default function SignIn({ onSwitch }) {
     setError(null);
     await delay(500);
 
-    // TODO: replace with a real API call once backend done
-    const user = _users.get(username.toLowerCase());
-    if (!user) {
-      setError("Username not found.");
-      setLoading(false);
-      return;
-    }
+    try {
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: username,
+          password: password
+        }),
+      });
 
-    if (user.password !== password) {
-      setError("Incorrect password.");
-      setLoading(false);
-      return;
+      if (!res.ok) {
+        const message = await res.text();
+        throw new Error(message);
+      }
+      const data = await res.json();
+      setToken(data.token)
+      setUsername(data.user.username);
+      console.log("Successfully signed in user:", data.user.username);
+
+      setSuccess(true);
+
+    } catch (err) {
+      console.error(err);
+      setError(err);
+      setSuccess(false);
     }
     setLoading(false);
-    setSuccess(true);
   }
 
   if (success) return (
@@ -67,7 +81,7 @@ export default function SignIn({ onSwitch }) {
         />
       </Field>
 
-      {error && <p className="a4a-err">{error}</p>}
+      {error && <p className="a4a-err">{error.message}</p>}
 
       <button type="button" className="a4a-btn" disabled={loading} onClick={handleSubmit}>
         {loading ? "Signing in…" : "Sign In"}
