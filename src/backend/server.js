@@ -471,6 +471,42 @@ app.get("/api/events/:id/count", async (req, res) => {
     const result = await pool.query(query, params);
     const count = parseInt(result.rows[0].count, 10);
     res.json({ count });
+    
+    } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+app.get("/api/full_name", async (req, res) => {
+  try {
+    const { user_id } = req.body;
+    const org = false;
+    const result = await pool.query(
+      "SELECT full_name FROM volunteers WHERE user_id = $1",
+      [user_id]
+    );
+    if (result.rowCount === 0) {
+      org = true
+      result = await pool.query(
+        "SELECT full_name FROM organizations WHERE user_id = $1",
+        [user_id]
+      );
+    }
+
+    if (result.rowCount === 0) {
+      res.status(404).send("User ID not found.");
+    }
+
+    // if we get here, we're good
+    const name = null;
+    if (org) {
+      name = result.rows[0].name;
+    } else {
+      name = result.rows[0].full_name;
+    }
+    res.json({ name });
+
 
   } catch (err) {
     console.error(err);
