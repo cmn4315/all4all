@@ -1,6 +1,7 @@
 import request from "supertest";
 import { describe, it, expect } from "vitest";
 import app from "../backend/server";
+import { randomUUID } from "crypto";
 
 /**
  * Tests endpoint for creating events
@@ -9,7 +10,7 @@ import app from "../backend/server";
  */
 describe("Event creation", () => {
   it("should create an event in DRAFT status", async () => {
-    const unique = Date.now();
+    const unique = randomUUID();
 
     const orgRes = await request(app)
       .post("/api/registerOrg")
@@ -67,7 +68,7 @@ describe("Event creation", () => {
  */
 describe("Event publishing", () => {
   it("should publish an event", async () => {
-    const unique = Date.now();
+    const unique = randomUUID();
 
     // Create organization
     const orgRes = await request(app)
@@ -126,7 +127,7 @@ describe("Event publishing", () => {
  */
 describe("Event cancellation", () => {
   it("should cancel an event", async () => {
-    const unique = Date.now();
+    const unique = randomUUID();
 
     // Create organization
     const orgRes = await request(app)
@@ -186,7 +187,7 @@ describe("Event cancellation", () => {
  */
 describe("Event update", () => {
   it("should update an existing event", async () => {
-    const unique = Date.now();
+    const unique = randomUUID();
 
     // Create organization
     const orgRes = await request(app)
@@ -266,7 +267,7 @@ describe("Event update", () => {
  */
 describe("Organization event listing", () => {
   it("should list events for an organization", async () => {
-    const unique = Date.now();
+    const unique = randomUUID();
 
     // Create organization
     const orgRes = await request(app)
@@ -325,7 +326,7 @@ describe("Organization event listing", () => {
     }
   });
   it("should return only published events when publishedOnly=true", async () => {
-    const unique = Date.now();
+    const unique = randomUUID();
 
     // Create organization
     const orgRes = await request(app)

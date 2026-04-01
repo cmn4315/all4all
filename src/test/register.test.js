@@ -1,6 +1,5 @@
 import request from "supertest";
 import { describe, it, expect } from "vitest";
-import { setTimeout } from 'node:timers/promises';
 import app from "../backend/server";
 import { randomUUID } from "crypto";
 
@@ -37,7 +36,6 @@ describe("Volunteer registration", () => {
    * Successfull volunteer registration returns the generated record id
    */
   it("should register a volunteer", async () => {
-    //Uses Date.now() to ensure that email and username are always unique
     const unique = randomUUID();
     const uniqueEmail = `test${unique}@test.com`;
     const uniqueUsername = `test${unique}`;
@@ -132,8 +130,7 @@ describe("Volunteer event register", () => {
   });
 
   it("should fail when the event is unpublished", async () => {
-    await setTimeout(1);
-    const unique = Date.now();
+    const unique = randomUUID();
 
     // Create volunteer
     const volunteerRes = await request(app)
@@ -192,9 +189,7 @@ describe("Volunteer event register", () => {
   });
 
   it("should fail when no such event exists", async () => {
-    // delay to (possibly) fix an error i got
-    await setTimeout(1);
-    const unique = Date.now();
+    const unique = randomUUID();
 
     // Create volunteer
     const volunteerRes = await request(app)
@@ -227,8 +222,7 @@ describe("Volunteer event register", () => {
  */
 describe("Volunteer unregister", () => {
   it("should unregister a volunteer from an event", async () => {
-    await setTimeout(1);
-    const unique = Date.now();
+    const unique = randomUUID();
 
     // Create volunteer
     const volunteerRes = await request(app)
@@ -319,8 +313,7 @@ describe("Volunteer unregister", () => {
  */
 describe("Event Headcount", () => {
   it("should return 1 when a volunteer is registered for an event", async () => {
-    await setTimeout(1);
-    const unique = Date.now();
+    const unique = randomUUID();
 
     // Create volunteer
     const volunteerRes = await request(app)
@@ -390,8 +383,7 @@ describe("Event Headcount", () => {
   });
 
   it("should return 0 when no volunteer is registered for an event", async () => {
-    await setTimeout(1);
-    const unique = Date.now();
+    const unique = randomUUID();
 
     // Create volunteer
     const volunteerRes = await request(app)
@@ -452,8 +444,7 @@ describe("Event Headcount", () => {
   });
 
   it("should return 0 when no volunteer is registered for an event", async () => {
-    await setTimeout(1);
-    const unique = Date.now();
+    const unique = randomUUID();
 
     // Create volunteer
     const volunteerRes = await request(app)
@@ -514,8 +505,7 @@ describe("Event Headcount", () => {
   });
 
   it("should return 0 when unpublished", async () => {
-    await setTimeout(1);
-    const unique = Date.now();
+    const unique = randomUUID();
 
     // Create volunteer
     const volunteerRes = await request(app)
@@ -586,9 +576,7 @@ describe("Login", () => {
     // The following is borrowed from the volunteer registration test, to create a volunteer for login
     // Would be better to use a fixture, but I don't know how to do that with vitest :)
 
-    //await setTimeout(1);
     const unique = randomUUID();
-    //Uses Date.now() to ensure that email and username are always unique
     const uniqueEmail = `test${unique}@test.com`;
     const uniqueUsername = `test${unique}`;
 
@@ -624,9 +612,8 @@ describe("Login", () => {
    * Successfull volunteer registration returns the generated record id
    */
   it("should return 401 when credentials are incorrect", async () => {
-    //Uses Date.now() to ensure that email and username are always unique
-    await setTimeout(1);
-    const uniqueUsername = `test${Date.now()}`;
+    const unique = randomUUID();
+    const uniqueUsername = `test${unique}`;
 
     const new_res = await request(app).post("/api/login").send({
       username: uniqueUsername,
