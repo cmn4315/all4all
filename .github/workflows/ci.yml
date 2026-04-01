@@ -46,9 +46,13 @@ jobs:
 
       - name: Run tests
         run: npm test
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
 
       - name: Set up ChromeDriver
         uses: browser-actions/setup-chrome@v1
 
       - name: Run Selenium tests
         run: npm run test:e2e
+        env:
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}

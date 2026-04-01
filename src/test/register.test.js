@@ -38,8 +38,9 @@ describe("Volunteer registration", () => {
    */
   it("should register a volunteer", async () => {
     //Uses Date.now() to ensure that email and username are always unique
-    const uniqueEmail = `test${Date.now()}@test.com`;
-    const uniqueUsername = `test${Date.now()}`;
+    const unique = randomUUID();
+    const uniqueEmail = `test${unique}@test.com`;
+    const uniqueUsername = `test${unique}`;
 
     //Send all required registration arguments in a post request and await response
     const res = await request(app)
@@ -68,7 +69,7 @@ describe("Volunteer registration", () => {
  */
 describe("Volunteer event register", () => {
   it("should register a volunteer for an event", async () => {
-    const unique = Date.now();
+    const unique = randomUUID();
 
     // Create volunteer
     const volunteerRes = await request(app)
