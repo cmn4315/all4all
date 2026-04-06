@@ -471,8 +471,8 @@ app.get("/api/events/:id/count", async (req, res) => {
     const result = await pool.query(query, params);
     const count = parseInt(result.rows[0].count, 10);
     res.json({ count });
-    
-    } catch (err) {
+
+  } catch (err) {
     console.error(err);
     res.status(500).send("Database error");
   }
