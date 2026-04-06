@@ -2,6 +2,8 @@ import request from "supertest";
 import { describe, it, expect } from "vitest";
 import app from "../backend/server";
 import { randomUUID } from "crypto";
+import { vi, afterEach } from "vitest";
+import { pool } from "../backend/db.js";
 
 /**
  * Tests endpoint for email validation
@@ -780,7 +782,6 @@ describe("Login", () => {
   });
 });
 
-
 /**
  * Tests endpoint for orgCategories
  * /api/orgCategories
@@ -805,4 +806,30 @@ describe("orgCategories", () => {
     expect(res.body).toHaveProperty("length");
     expect(res.body.length).toBe(12);
   });
+});
+
+/**
+ * Database error mocking tests
+ */
+describe("Database error mocking - Register endpoints", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("should return 500 on GET /api/checkEmail database error", async () => {
+    const _querySpy = vi.spyOn(pool, 'query').mockRejectedValue(new Error("Database error"));
+
+    const res = await request(app).get("/api/checkEmail?email=test@test.com");
+
+    expect(res.statusCode).toBe(500);
+  });
+
+  it("should return 500 on GET /api/orgCategories database error", async () => {
+    const _querySpy = vi.spyOn(pool, 'query').mockRejectedValue(new Error("Database error"));
+
+    const res = await request(app).get("/api/orgCategories");
+
+    expect(res.statusCode).toBe(500);
+  });
+
 });
