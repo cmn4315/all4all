@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import { pool } from "./db.js";
 import jwt from "jsonwebtoken";
 import multer from "multer";
+import { mkdirSync } from "fs";
 
 // For using env variables (i.e. JWT_SECRET for tokens)
 import dotenv from "dotenv";
@@ -634,17 +635,48 @@ app.get("/api/volunteer_badges", async (req, res) => {
 // set upload directory and filename callbacks for multer
 const storage = multer.diskStorage({
   destination: function(req, file, cb) {
-    cb(null, `/uploads/${req.body.user_id}`)
+    const type = req.uploadType; // "user" or "badge"
+    const id = req.uploadId;
+
+    const uploadPath = `./uploads/${type}/${id}`;
+
+    // ensure directory exists
+    mkdirSync(uploadPath, { recursive: true });
+
+    cb(null, uploadPath);
   },
   filename: function(req, file, cb) {
     cb(null, file.fieldname)
   }
-})
+});
 
 const upload = multer({ storage: storage })
 
-app.post("api/upload", upload.single("file"), async (req, res) => {
-  res.send('File uploaded successfully');
-})
+app.post("api/upload_image", upload.single("file"), async (req, res) => {
+  try {
+    // TODO: Add token verification here so you can only change your own picture
+    let result;
+    switch (req.uploadId) {
+      case "user":
+        result = await client.query(
+          "UPDATE users SET image_url=$1 WHERE id=$2",
+          [`/uploads/${req.uploadType}/${req.uploadId}/${req.file.fieldname}`, req.uploadId]
+        );
+        break;
+      case "badge":
+        result = await client.query(
+          "UPDATE badges SET image_url=$1 WHERE id=$2",
+          [`/uploads/${req.uploadType}/${req.uploadId}/${req.file.fieldname}`, req.uploadId]
+        );
+        break;
+      default:
+        return res.status(400).send("Unsupported upload type.");
+    }
+    res.send('File uploaded successfully');
+  } catch (err) {
+    console.err(err);
+    res.status(500).send("Database Error");
+  }
+});
 
 export default app;
