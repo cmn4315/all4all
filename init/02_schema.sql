@@ -136,6 +136,13 @@ CREATE TABLE volunteer_badges (
     PRIMARY KEY (volunteer_id, badge_id)
 );
 
+-- Represents the colors attached to an organizations account
+CREATE TABLE org_colors (
+    organization_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    color_id TEXT NOT NULL,
+    PRIMARY KEY (organization_id, color_id)
+);
+
 
 -- All notifications.
 -- recipient_user_id references users so both volunteers and organizations are supported.
