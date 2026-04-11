@@ -514,4 +514,120 @@ app.get("/api/full_name", async (req, res) => {
   }
 });
 
+// Associate a badge with an event, insert into the appropriate table
+// The event needs to be created before hitting this endpoint, so in order
+// for it to be used. The event_id has to already exist in the events table
+// the badge_id also needs to already exist, so the badge has to be created already
+app.post("/api/event_badges", async (req, res) => {
+  try {
+    const { event_id, badge_id } = req.body;
+
+    if (!event_id || !badge_id) {
+      return res.status(400).send("event_id and badge_id are required.");
+    }
+
+    await pool.query(
+      "INSERT INTO event_badges (event_id, badge_id) VALUES ($1, $2)",
+      [event_id, badge_id]
+    );
+
+    res.status(201).send("Badge attached to event successfully.");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+// Get all of the badges associated with a particular event
+app.get("/api/event_badges", async (req, res) => {
+  try {
+    const { event_id } = req.query;
+
+    if (!event_id) {
+      return res.status(400).send("event_id is required.");
+    }
+
+    const result = await pool.query(
+      `SELECT badges.* FROM badges
+       JOIN event_badges ON badges.id = event_badges.badge_id
+       WHERE event_badges.event_id = $1`,
+      [event_id]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+// Reward badges to those who came to the event, Gets the event_id
+// and gets all of the volunteers that came to the event, gets all of the badges
+// associated with the event. Give the badges to those who came
+app.post("/api/volunteer_badges/award", async (req, res) => {
+  try {
+    const { event_id } = req.body;
+
+    if (!event_id) {
+      return res.status(400).send("event_id is required.");
+    }
+
+    // Get all volunteers who attended the event
+    const volunteers = await pool.query(
+      "SELECT volunteer_id FROM event_registrations WHERE event_id = $1 AND attended = TRUE",
+      [event_id]
+    );
+
+    // Get all badges attached to the event
+    const badges = await pool.query(
+      "SELECT badge_id FROM event_badges WHERE event_id = $1",
+      [event_id]
+    );
+
+    if (volunteers.rowCount === 0 || badges.rowCount === 0) {
+      return res.status(404).send("No attended volunteers or no badges found for this event.");
+    }
+
+    // Award every badge to every attended volunteer
+    for (const volunteer of volunteers.rows) {
+      for (const badge of badges.rows) {
+        await pool.query(
+          `INSERT INTO volunteer_badges (volunteer_id, badge_id)
+           VALUES ($1, $2)
+           ON CONFLICT DO NOTHING`,
+          [volunteer.volunteer_id, badge.badge_id]
+        );
+      }
+    }
+
+    res.status(201).send("Badges awarded successfully.");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+// get all of the badges for a particular volunteer
+app.get("/api/volunteer_badges", async (req, res) => {
+  try {
+    const { volunteer_id } = req.query;
+
+    if (!volunteer_id) {
+      return res.status(400).send("volunteer_id is required.");
+    }
+
+    const result = await pool.query(
+      `SELECT badges.*, volunteer_badges.earned_at FROM badges
+       JOIN volunteer_badges ON badges.id = volunteer_badges.badge_id
+       WHERE volunteer_badges.volunteer_id = $1`,
+      [volunteer_id]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
 export default app;
