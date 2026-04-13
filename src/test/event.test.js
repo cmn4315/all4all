@@ -91,15 +91,15 @@ describe("Event creation", () => {
   });
 
   it("should return 400 when required fields are missing", async () => {
-  const res = await request(app)
-    .post("/api/events")
-    .send({
-      name: "Incomplete Event"
-    });
+    const res = await request(app)
+      .post("/api/events")
+      .send({
+        name: "Incomplete Event"
+      });
 
-  console.log("Missing fields:", res.statusCode, res.body);
+    console.log("Missing fields:", res.statusCode, res.body);
 
-  expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(400);
   });
 });
 
@@ -153,12 +153,12 @@ describe("Event publishing", () => {
     expect(publishRes.body).toHaveProperty("success", true);
   });
   it("should return 404 when publishing a nonexistent event", async () => {
-  const res = await request(app)
-    .put("/api/events/999999/publish");
+    const res = await request(app)
+      .put("/api/events/999999/publish");
 
-  console.log("Publish fail:", res.statusCode, res.body);
+    console.log("Publish fail:", res.statusCode, res.body);
 
-  expect(res.statusCode).toBe(404);
+    expect(res.statusCode).toBe(404);
   });
 });
 
@@ -390,8 +390,8 @@ describe("Organization event listing", () => {
 
     // Create organization
     const orgRes = await request(app)
-        .post("/api/registerOrg")
-        .send({
+      .post("/api/registerOrg")
+      .send({
         name: `org${unique}`,
         email: `org${unique}@test.com`,
         phone: "555-1111",
@@ -399,14 +399,14 @@ describe("Organization event listing", () => {
         password: "pass123",
         category_id: 1,
         zip_code: "14623"
-        });
+      });
 
     expect(orgRes.statusCode).toBe(200);
 
     // Create draft event
     const draftRes = await request(app)
-        .post("/api/events")
-        .send({
+      .post("/api/events")
+      .send({
         organization_id: orgRes.body.id,
         name: "Draft Event",
         description: "Should not appear",
@@ -416,14 +416,14 @@ describe("Organization event listing", () => {
         city: "Rochester",
         state: "NY",
         zip_code: "14623"
-        });
+      });
 
     expect(draftRes.statusCode).toBe(200);
 
     // Create second event
     const publishedRes = await request(app)
-        .post("/api/events")
-        .send({
+      .post("/api/events")
+      .send({
         organization_id: orgRes.body.id,
         name: "Published Event",
         description: "Should appear",
@@ -433,17 +433,17 @@ describe("Organization event listing", () => {
         city: "Rochester",
         state: "NY",
         zip_code: "14623"
-        });
+      });
 
     expect(publishedRes.statusCode).toBe(200);
 
     // Publish second event
     await request(app)
-        .put(`/api/events/${publishedRes.body.id}/publish`);
+      .put(`/api/events/${publishedRes.body.id}/publish`);
 
     // Request only published events
     const listRes = await request(app)
-        .get(`/api/organizations/${orgRes.body.id}/events?publishedOnly=true`);
+      .get(`/api/organizations/${orgRes.body.id}/events?publishedOnly=true`);
 
     console.log("Published only:", listRes.statusCode, listRes.body);
 
@@ -718,6 +718,97 @@ describe("Duplicate volunteer registration", () => {
     console.log("Register 409:", regRes2.statusCode, regRes2.body);
 
     expect(regRes2.statusCode).toBe(409);
+  });
+});
+
+describe("createBadge", () => {
+  it("creates a badge successfully", async () => {
+    const unique = randomUUID();
+    const uniqueEmail = `test${unique}@test.com`;
+    const uniqueUsername = `test${unique}`;
+
+    // Register volunteer
+    const regRes = await request(app)
+      .post("/api/registerVolunteer")
+      .send({
+        username: uniqueUsername,
+        email: uniqueEmail,
+        password: "pass123",
+        firstName: "Jane",
+        lastName: "Doe",
+        phone: "555-1234"
+      });
+
+    console.log(regRes.statusCode, regRes.body);
+
+    const res = await request(app)
+      .post("/api/createBadge")
+      .send({
+        badge_name: "Test Badge",
+        description: "A test badge",
+        user_id: regRes.body.id
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("id");
+  });
+
+  it("returns 400 if required fields are missing", async () => {
+    const res = await request(app)
+      .post("/api/createBadge")
+      .send({
+        badge_name: "Incomplete Badge"
+        // missing description + user_id
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/missing/i);
+  });
+
+  it("returns 500 for unexpected errors", async () => {
+    // send something weird that might break query
+    const res = await request(app)
+      .post("/api/createBadge")
+      .send({
+        badge_name: null,
+        description: null,
+        user_id: null
+      });
+
+    // could be 400 or 500 depending on validation timing
+    expect([400, 500]).toContain(res.status);
+  });
+
+  it("returns 400 when fields are missing", async () => {
+    const res = await request(app)
+      .post("/api/createBadge")
+      .send({
+        badge_name: "Only name"
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/missing/i);
+  });
+
+  it("returns 400 for invalid user_id (foreign key)", async () => {
+    const res = await request(app)
+      .post("/api/createBadge")
+      .send({
+        badge_name: "Test Badge",
+        description: "Test description",
+        user_id: 999999 // should not exist
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/user id/i);
+  });
+
+  it("handles malformed request body", async () => {
+    const res = await request(app)
+      .post("/api/createBadge")
+      .send(null); // no body at all
+
+    expect(res.status).toBeGreaterThanOrEqual(400);
   });
 });
 

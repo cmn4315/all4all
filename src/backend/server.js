@@ -635,8 +635,8 @@ app.get("/api/volunteer_badges", async (req, res) => {
 // set upload directory and filename callbacks for multer
 const storage = multer.diskStorage({
   destination: function(req, file, cb) {
-    const type = req.uploadType; // "user" or "badge"
-    const id = req.uploadId;
+    const type = req.body.uploadType; // "user" or "badge"
+    const id = req.body.userId;
 
     const uploadPath = `./uploads/${type}/${id}`;
 
@@ -652,31 +652,91 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage })
 
-app.post("api/upload_image", upload.single("file"), async (req, res) => {
+app.post("/api/upload_image", upload.single("file"), async (req, res) => {
   try {
     // TODO: Add token verification here so you can only change your own picture
     let result;
-    switch (req.uploadId) {
+    switch (req.body.uploadType) {
       case "user":
-        result = await client.query(
+        result = await pool.query(
           "UPDATE users SET image_url=$1 WHERE id=$2",
-          [`/uploads/${req.uploadType}/${req.uploadId}/${req.file.fieldname}`, req.uploadId]
+          [`/uploads/${req.body.uploadType}/${req.body.userId}/${req.file.fieldname}`, req.body.userId]
         );
+        console.log("user update finished");
+        if (result.rowCount === 0) {
+          return res.status(404).send("Failed to update the database, userId not found");
+        }
         break;
       case "badge":
-        result = await client.query(
-          "UPDATE badges SET image_url=$1 WHERE id=$2",
-          [`/uploads/${req.uploadType}/${req.uploadId}/${req.file.fieldname}`, req.uploadId]
+        result = await pool.query(
+          "UPDATE badges SET image_url=$1 WHERE id=$2 AND user_id=$3",
+          [`/uploads/${req.body.uploadType}/${req.body.userId}/${req.file.fieldname}`, req.body.badgeId, req.body.userId]
         );
+        console.log("badge upload done");
+        if (result.rowCount === 0) {
+          return res.status(404).send("Failed to update the database, matching badge entry not found");
+        }
         break;
       default:
         return res.status(400).send("Unsupported upload type.");
     }
+    console.log("sending success msg");
     res.send('File uploaded successfully');
   } catch (err) {
-    console.err(err);
+    console.error(err);
     res.status(500).send("Database Error");
   }
 });
+
+/*
+  Create a new entry in the badges table
+  Badges need name, description, and uploading user_id 
+  This assumes that a separate call will be made to /api/upload_image to add a photo
+*/
+app.post("/api/createBadge", async (req, res) => {
+  const client = await pool.connect();
+  let transactionStarted = false;
+
+
+  try {
+    // TODO: get user id from token rather than body
+    const { badge_name, description, user_id } = req.body;
+
+    if (!badge_name || !description || !user_id) {
+      console.log(`missing req fields: ${badge_name},${description},${user_id}`)
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    await client.query("BEGIN");
+    transactionStarted = true;
+
+    const badgeResult = await client.query(
+      "INSERT INTO badges(user_id,name,description) VALUES($1,$2,$3) RETURNING id",
+      [user_id, badge_name, description]
+    );
+    console.log("done with insert query")
+
+    await client.query("COMMIT");
+    transactionStarted = false;
+
+    res.json({ id: badgeResult.rows[0].id });
+
+  } catch (err) {
+    if (transactionStarted) {
+      await client.query("ROLLBACK");
+    }
+
+    if (err.code === "23503") {
+      return res.status(400).json({ error: "User id doesn't exist" });
+    }
+
+    console.error(err);
+    res.status(500).send("Database error");
+
+  } finally {
+    client.release();
+  }
+});
+
 
 export default app;

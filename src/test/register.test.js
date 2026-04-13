@@ -2,9 +2,10 @@ import request from "supertest";
 import { describe, it, expect } from "vitest";
 import app from "../backend/server";
 import { randomUUID } from "crypto";
-import { vi, afterEach } from "vitest";
+import { vi, afterEach, beforeEach } from "vitest";
 import { pool } from "../backend/db.js";
-
+import fs from "fs";
+import path from "path";
 /**
  * Tests endpoint for email validation
  * Ensures unique email addresses
@@ -107,7 +108,7 @@ describe("Volunteer registration", () => {
     expect(res.statusCode).toBe(200);
     expect(res.body).toHaveProperty("id");
 
-        //Send all required registration arguments in a post request and await response
+    //Send all required registration arguments in a post request and await response
     res = await request(app)
       .post("/api/registerVolunteer")
       .send({
@@ -805,6 +806,185 @@ describe("orgCategories", () => {
     // TODO: Not sure if this is the best thing to test -- if we add any more categories, test will need to change
     expect(res.body).toHaveProperty("length");
     expect(res.body.length).toBe(12);
+  });
+});
+
+describe("upload_image", () => {
+  const testFilePath = path.join(__dirname, "test-image.jpg");
+
+  beforeEach(() => {
+    // create dummy file
+    fs.writeFileSync(testFilePath, "fake image");
+  });
+
+  afterEach(() => {
+    // cleanup uploaded files
+    if (fs.existsSync("./uploads")) {
+      fs.rmSync("./uploads", { recursive: true, force: true });
+    }
+
+    // cleanup temp file
+    if (fs.existsSync(testFilePath)) {
+      fs.unlinkSync(testFilePath);
+    }
+  });
+
+  it("uploads user image successfully", async () => {
+
+    const unique = randomUUID();
+    const uniqueEmail = `test${unique}@test.com`;
+    const uniqueUsername = `test${unique}`;
+
+    // Register volunteer
+    const regRes = await request(app)
+      .post("/api/registerVolunteer")
+      .send({
+        username: uniqueUsername,
+        email: uniqueEmail,
+        password: "pass123",
+        firstName: "Jane",
+        lastName: "Doe",
+        phone: "555-1234"
+      });
+
+    console.log(regRes.statusCode, regRes.body);
+
+    const res = await request(app)
+      .post("/api/upload_image")
+      .field("uploadType", "user")
+      .field("userId", regRes.body.id)
+      .attach("file", testFilePath);
+
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/uploaded/i);
+
+    const uploadPath = `./uploads/user/${regRes.body.id}`;
+    expect(fs.existsSync(uploadPath)).toBe(true);
+
+    const files = fs.readdirSync(uploadPath);
+    expect(files.length).toBe(1);
+  });
+
+  it("uploads badge image successfully", async () => {
+    const unique = randomUUID();
+    const uniqueEmail = `test${unique}@test.com`;
+    const uniqueUsername = `test${unique}`;
+
+    // Register volunteer
+    const regRes = await request(app)
+      .post("/api/registerVolunteer")
+      .send({
+        username: uniqueUsername,
+        email: uniqueEmail,
+        password: "pass123",
+        firstName: "Jane",
+        lastName: "Doe",
+        phone: "555-1234"
+      });
+
+    console.log(regRes.statusCode, regRes.body);
+
+    const badgeRes = await request(app)
+      .post("/api/createBadge")
+      .send({
+        badge_name: "Test Badge",
+        description: "A test badge",
+        user_id: regRes.body.id
+      });
+
+    expect(badgeRes.status).toBe(200);
+    expect(badgeRes.body).toHaveProperty("id");
+
+    const res = await request(app)
+      .post("/api/upload_image")
+      .field("uploadType", "badge")
+      .field("userId", regRes.body.id)
+      .field("badgeId", badgeRes.body.id)
+      .attach("file", testFilePath);
+
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/uploaded/i);
+
+    const uploadPath = `./uploads/badge/${regRes.body.id}`;
+    expect(fs.existsSync(uploadPath)).toBe(true);
+
+    const files = fs.readdirSync(uploadPath);
+    expect(files.length).toBe(1);
+  });
+
+  it("returns 400 for unsupported uploadType", async () => {
+    const unique = randomUUID();
+    const uniqueEmail = `test${unique}@test.com`;
+    const uniqueUsername = `test${unique}`;
+
+    // Register volunteer
+    const regRes = await request(app)
+      .post("/api/registerVolunteer")
+      .send({
+        username: uniqueUsername,
+        email: uniqueEmail,
+        password: "pass123",
+        firstName: "Jane",
+        lastName: "Doe",
+        phone: "555-1234"
+      });
+
+    const res = await request(app)
+      .post("/api/upload_image")
+      .field("uploadType", "invalid")
+      .field("userId", regRes.body.id)
+      .attach("file", testFilePath);
+
+    expect(res.status).toBe(400);
+    expect(res.text).toMatch(/unsupported/i);
+  });
+
+  it("returns 404 when user update affects 0 rows", async () => {
+    const res = await request(app)
+      .post("/api/upload_image")
+      .field("uploadType", "user")
+      .field("userId", "999999")
+      .attach("file", testFilePath);
+
+    expect(res.status).toBe(404);
+    expect(res.text).toMatch(/not found/i);
+  });
+
+  it("returns 404 when badge update affects 0 rows", async () => {
+    const res = await request(app)
+      .post("/api/upload_image")
+      .field("uploadType", "badge")
+      .field("userId", "1")
+      .field("badgeId", "999999")
+      .attach("file", testFilePath);
+
+    expect(res.status).toBe(404);
+    expect(res.text).toMatch(/not found/i);
+  });
+
+  it("fails when no file is uploaded", async () => {
+    const unique = randomUUID();
+    const uniqueEmail = `test${unique}@test.com`;
+    const uniqueUsername = `test${unique}`;
+
+    // Register volunteer
+    const regRes = await request(app)
+      .post("/api/registerVolunteer")
+      .send({
+        username: uniqueUsername,
+        email: uniqueEmail,
+        password: "pass123",
+        firstName: "Jane",
+        lastName: "Doe",
+        phone: "555-1234"
+      });
+    const res = await request(app)
+      .post("/api/upload_image")
+      .field("uploadType", "user")
+      .field("userId", regRes.body.id);
+
+    // could be 400 or 500 depending on how multer behaves
+    expect(res.status).toBeGreaterThanOrEqual(400);
   });
 });
 
