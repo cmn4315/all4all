@@ -4,6 +4,7 @@ import { pool } from "./db.js";
 import jwt from "jsonwebtoken";
 import multer from "multer";
 import { mkdirSync } from "fs";
+import { resolve, join } from "path";
 
 // For using env variables (i.e. JWT_SECRET for tokens)
 import dotenv from "dotenv";
@@ -638,12 +639,21 @@ const storage = multer.diskStorage({
     const type = req.body.uploadType; // "user" or "badge"
     const id = req.body.userId;
 
-    const uploadPath = `./uploads/${type}/${id}`;
+    const basePath = resolve('./uploads');
+    const uploadPath = join(basePath, type, id);
+
+    if (!uploadPath.startsWith(basePath)) {
+      return cb(new Error('Path traversal attempt detected.'));
+    }
 
     // ensure directory exists
-    mkdirSync(uploadPath, { recursive: true });
-
-    cb(null, uploadPath);
+    try {
+      // Ensure directory exists securely
+      mkdirSync(uploadPath, { recursive: true });
+      cb(null, uploadPath);
+    } catch (err) {
+      cb(err);
+    }
   },
   filename: function(req, file, cb) {
     cb(null, file.fieldname)
