@@ -636,19 +636,44 @@ app.get("/api/volunteer_badges", async (req, res) => {
 // set upload directory and filename callbacks for multer
 const storage = multer.diskStorage({
   destination: function(req, file, cb) {
-    const type = req.body.uploadType; // "user" or "badge"
-    const id = req.body.userId;
+    const rawType = Array.isArray(req.body.uploadType) ? req.body.uploadType : req.body.uploadType;
+    const rawId = Array.isArray(req.body.userId) ? req.body.userId : req.body.userId;
 
-    const basePath = resolve('./uploads');
-    const uploadPath = join(basePath, type, id);
+    const strType = String(rawType || '');
+    const strId = String(rawId || '');
 
-    if (!uploadPath.startsWith(basePath)) {
-      return cb(new Error('Path traversal attempt detected.'));
+    // 1. Validate 'type' and throw a 400 if invalid
+    const allowedTypes = { 'user': 'user', 'badge': 'badge' };
+    const safeType = allowedTypes[strType];
+    
+    if (!safeType) {
+      const err = new Error('Unsupported uploadType');
+      err.status = 400; // Forces Express error handler to return 400 instead of 500
+      return cb(err);
     }
 
-    // ensure directory exists
+    // 2. Validate 'id' and throw a 400 if invalid
+    const match = strId.match(/^[a-zA-Z0-9-]+$/);
+    const safeId = match ? match : null;
+
+    if (!safeId) {
+      const err = new Error('Invalid user ID');
+      err.status = 400;
+      return cb(err);
+    }
+
+    let basePath = resolve('./uploads');
+    if (Array.isArray(basePath)) basePath = basePath[0];
+    
     try {
-      // Ensure directory exists securely
+      const uploadPath = join(String(basePath), String(safeType), String(safeId));
+
+      if (!uploadPath.startsWith(String(basePath))) {
+        const err = new Error('Path traversal attempt detected.');
+        err.status = 400;
+        return cb(err);
+      }
+
       mkdirSync(uploadPath, { recursive: true });
       cb(null, uploadPath);
     } catch (err) {
@@ -656,7 +681,7 @@ const storage = multer.diskStorage({
     }
   },
   filename: function(req, file, cb) {
-    cb(null, file.fieldname)
+    cb(null, file.fieldname);
   }
 });
 
