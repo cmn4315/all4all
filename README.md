@@ -1,3 +1,7 @@
+# Quality Gate Results
+
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=732-Group-4_all4all&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=732-Group-4_all4all)
+
 # Code Coverage Results
 
 [![codecov](https://codecov.io/gh/732-Group-4/all4all/branch/main/graph/badge.svg)](https://app.codecov.io/github/732-Group-4/all4all)
