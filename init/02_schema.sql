@@ -40,7 +40,8 @@ CREATE TABLE organizations (
     description TEXT NOT NULL, -- public description of the organization, on profile
     category_id INTEGER NOT NULL REFERENCES org_categories(id), -- Each organization belongs to one category.
     zip_code TEXT NOT NULL,
-    address TEXT
+    address TEXT,
+    brand_colors TEXT[]
 );
 
 
@@ -70,6 +71,7 @@ CREATE TABLE events (
     city TEXT,
     state TEXT,
     zip_code VARCHAR(10) NOT NULL,
+    color TEXT DEFAULT '#15803d',
     CHECK (end_time > start_time) -- ensures that the end time is after the start time
 );
 
@@ -159,4 +161,20 @@ CREATE TABLE user_follows (
     following_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     PRIMARY KEY (follower_user_id, following_user_id),
     CHECK (follower_user_id <> following_user_id)
+);
+
+
+CREATE TABLE event_roles (
+    id SERIAL PRIMARY KEY,
+    event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    spots INTEGER NOT NULL,
+    filled INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE event_role_registrations (
+    id SERIAL PRIMARY KEY,
+    role_id INTEGER NOT NULL REFERENCES event_roles(id) ON DELETE CASCADE,
+    volunteer_id INTEGER NOT NULL REFERENCES volunteers(id) ON DELETE CASCADE,
+    UNIQUE(role_id, volunteer_id)
 );

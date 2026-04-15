@@ -43,23 +43,77 @@ export default function ProfilePage() {
 
   const [displayName, setDisplayName] = useState("");
 
+
   useEffect(() => {
     if (!user?.id) return;
 
+    // need to edit for biz name
+    /*fetch(`/api/full_name?user_id=${user.id}`)
+      .then(res => res.json())
+      .then(data => {
+        setDisplayName(data.name);
+        if (isVolunteer) {
+          const [firstName, ...rest] = data.name.split(" ");
+          setForm(f => ({ ...f, firstName, lastName: rest.join(" ") }));
+        } else {
+          setForm(f => ({ ...f, name: data.name })); // ← sets form.name for orgs
+        }
+      })*/
     fetch(`/api/full_name?user_id=${user.id}`)
       .then(res => res.json())
       .then(data => {
         setDisplayName(data.name);
-        const [firstName, ...rest] = data.name.split(" ");
-        const lastName = rest.join(" ");
-        setForm(f => ({ ...f, firstName, lastName }));
-      })
-      .catch(err => console.error("Error fetching name:", err));
+        if (isVolunteer) {
+          const [firstName, ...rest] = data.name.split(" ");
+          setForm(f => ({ ...f, firstName, lastName: rest.join(" ") }));
+        } else {
+          setForm(f => ({ ...f, name: data.name }));
+        }
+    })
 
     fetch(`/api/phone?user_id=${user.id}`)
       .then(res => res.json())
       .then(data => setForm(f => ({ ...f, phone: data.phone })))
       .catch(err => console.error("Error fetching phone:", err));
+    
+    fetch(`/api/phone?user_id=${user.id}`)
+      .then(res => res.json())
+      .then(data => setForm(f => ({ ...f, phone: data.phone })))
+      .catch(err => console.error("Error fetching phone:", err));
+    
+    // get zip code
+    const zipUrl = isVolunteer
+      ? `/api/volunteers/zip_code?user_id=${user.id}`
+      : `/api/organizations/zip_code?user_id=${user.id}`;
+
+    fetch(zipUrl)
+      .then(res => res.json())
+      .then(data => setForm(f => ({ ...f, zip_code: data.zip_code || "" })))
+      .catch(err => console.error("Error fetching zipcode:", err));
+
+    //fetch(`/api/organizations/zip_code?user_id=${user.id}`)
+    // .then(res => res.json())
+    //  .then(data => setForm(f => ({ ...f, zipcode: data.zipcode })))
+    //  .catch(err => console.error("Error fetching zipcode:", err));
+
+    // get address
+    fetch(`/api/organizations/address?user_id=${user.id}`)
+      .then(res => res.json())
+      .then(data => setForm(f => ({ ...f, address: data.address })))
+      .catch(err => console.error("Error fetching address:", err));
+
+    // get motto
+    if(!isVolunteer){
+      fetch(`/api/organizations/motto?user_id=${user.id}`)
+        .then(res => res.json())
+        .then(data => setForm(f => ({ ...f, motto: data.motto })))
+        .catch(err => console.error("Error fetching motto:", err));
+    }
+    // get brand colors
+    fetch(`/api/organizations/brand_colors?user_id=${user.id}`)
+      .then(res => res.json())
+      .then(data => setForm(f => ({ ...f, colors: data.colors || [] })))
+      .catch(err => console.error("Error fetching brand colors:", err));
   }, []);
 
   const str = getPasswordStrength(newPass);
@@ -115,15 +169,15 @@ export default function ProfilePage() {
     const errs = {};
     const uErr = validateUsernameFormat(form.username);
     if (uErr) errs.username = uErr;
-    const zErr = validateZip(form.zip);
-    if (zErr) errs.zip = zErr;
+    const zErr = validateZip(form.zip_code);
+    if (zErr) errs.zip_code = zErr;
     const pErr = validatePhone(form.phone);
     if (pErr) errs.phone = pErr;
     if (isVolunteer) {
       if (!form.firstName?.trim()) errs.firstName = "First name is required.";
       if (!form.lastName?.trim())  errs.lastName  = "Last name is required.";
     } else {
-      if (!form.bizName?.trim()) errs.bizName = "Organization name is required.";
+      if (!form.name?.trim()) errs.name = "Organization name is required.";
       if (!form.motto?.trim())   errs.motto   = "Motto is required.";
     }
     if (newPass) {
@@ -135,7 +189,7 @@ export default function ProfilePage() {
   }
 
   // ── Save ──
-  function handleSave() {
+  async function handleSave() {
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
 
@@ -146,6 +200,36 @@ export default function ProfilePage() {
       localStorage.setItem("userAvatar", updated.avatar);
       delete updated.avatar;
     }
+
+    try {
+    if (isVolunteer) {
+      await fetch("/api/volunteers/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: user.id,
+          firstName: form.firstName,
+          lastName: form.lastName,
+          zip_code: form.zip_code,
+        }),
+      });
+    } else {
+      await fetch("/api/organizations/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          user_id: user.id,
+          name: form.name,
+          address: form.address,
+          zip_code: form.zip_code,
+          motto: form.motto,
+          brand_colors: form.colors || [],
+        }),
+      });
+    }
+  } catch (err) {
+    console.error("Failed to save profile:", err);
+  }
 
     localStorage.setItem("user", JSON.stringify(updated));
     setUser(updated);
@@ -166,6 +250,7 @@ export default function ProfilePage() {
     setEditing(false);
   }
 
+  console.log("FORM STATE:", form);
   return (
     <div className="prof-page">
 
@@ -309,17 +394,17 @@ export default function ProfilePage() {
                   <div className="prof-value">{form.phone || <span className="prof-value--muted">Not set</span>}</div>
                 )}
               </Field>
-              <Field label="ZIP Code" error={errors.zip}>
+              <Field label="ZIP Code" error={errors.zip_code}>
                 {editing ? (
                   <TextInput
-                    value={form.zip || ""}
-                    onChange={(e) => set("zip", e.target.value)}
-                    error={errors.zip}
+                    value={form.zip_code || ""}
+                    onChange={(e) => set("zip_code", e.target.value)}
+                    error={errors.zip_code}
                     placeholder="90210"
                     className="a4a-input--zip"
                   />
                 ) : (
-                  <div className="prof-value">{user.zip || <span className="prof-value--muted">Not set</span>}</div>
+                  <div className="prof-value">{form.zip_code || <span className="prof-value--muted">Not set</span>}</div>
                 )}
               </Field>
             </div>
@@ -333,16 +418,16 @@ export default function ProfilePage() {
           <div className="prof-section">
             <div className="prof-section-title">Organization Information</div>
 
-            <Field label="Organization Name" error={errors.bizName}>
+            <Field label="Organization Name" error={errors.name}>
               {editing ? (
                 <TextInput
-                  value={form.bizName || ""}
-                  onChange={(e) => set("bizName", e.target.value)}
-                  error={errors.bizName}
+                  value={form.name || ""}
+                  onChange={(e) => set("name", e.target.value)}
+                  error={errors.name}
                   placeholder="Green Earth Foundation"
                 />
               ) : (
-                <div className="prof-value">{user.bizName}</div>
+                <div className="prof-value">{form.name}</div>
               )}
             </Field>
 
@@ -376,16 +461,16 @@ export default function ProfilePage() {
                   <div className="prof-value">{form.phone || <span className="prof-value--muted">Not set</span>}</div>
                 )}
               </Field>
-              <Field label="ZIP Code" error={errors.zip}>
+              <Field label="ZIP Code" error={errors.zip_code}>
                 {editing ? (
                   <TextInput
-                    value={form.zip || ""}
-                    onChange={(e) => set("zip", e.target.value)}
-                    error={errors.zip}
+                    value={form.zip_code || ""}
+                    onChange={(e) => set("zip_code", e.target.value)}
+                    error={errors.zip_code}
                     placeholder="90210"
                   />
                 ) : (
-                  <div className="prof-value">{user.zip || <span className="prof-value--muted">Not set</span>}</div>
+                  <div className="prof-value">{form.zip_code || <span className="prof-value--muted">Not set</span>}</div>
                 )}
               </Field>
             </div>
@@ -398,7 +483,7 @@ export default function ProfilePage() {
                   placeholder="123 Main St"
                 />
               ) : (
-                <div className="prof-value">{user.address || <span className="prof-value--muted">Not set</span>}</div>
+                <div className="prof-value">{form.address || <span className="prof-value--muted">Not set</span>}</div>
               )}
             </Field>
 
@@ -411,7 +496,7 @@ export default function ProfilePage() {
                   className={`a4a-textarea${errors.motto ? " error" : ""}`}
                 />
               ) : (
-                <div className="prof-value">{user.motto || <span className="prof-value--muted">Not set</span>}</div>
+                <div className="prof-value">{form.motto || <span className="prof-value--muted">Not set</span>}</div>
               )}
             </Field>
 
@@ -425,7 +510,7 @@ export default function ProfilePage() {
                 />
               ) : (
                 <div className="prof-colors-row">
-                  {user.colors?.length ? user.colors.map((c) => (
+                  {form.colors?.length ? form.colors.map((c) => (
                     <div key={c} className="prof-color-chip">
                       <span className="prof-color-chip__swatch" style={{ background: c }} />
                       <span className="prof-color-chip__hex">{c}</span>

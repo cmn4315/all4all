@@ -126,13 +126,15 @@ export default function OrgForm({ onSwitch }) {
                 },
                 body: JSON.stringify({
                     username: username.val,
-                    name: bizName,           // ✅ org name for the organizations table
+                    name: bizName,          
                     email: email.val,
                     phone: phoneRaw,
-                    description: motto,      // ✅ was motto.val
+                    description: motto,      
                     password: password,
-                    zip_code: zip,           // ✅ was zip
+                    zip_code: zip,          
                     category_id: categoryId,
+                    address: address,
+                    brand_colors: selectedColors,
                 }),
             });
 

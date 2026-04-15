@@ -84,7 +84,7 @@ app.post("/api/registerOrg", async (req, res) => {
   let transactionStarted = false;
 
   try {
-    const { username, name, email, phone, description, password, category_id, zip_code } = req.body;
+    const { username, name, email, phone, description, password, category_id, zip_code, address, brand_colors } = req.body;
 
     await client.query("BEGIN");
     transactionStarted = true;
@@ -92,8 +92,8 @@ app.post("/api/registerOrg", async (req, res) => {
     const user_id = await createUser(client, username, email, password, phone, "ORGANIZATION");
 
     const orgResult = await client.query(
-      `INSERT INTO organizations(user_id, name, description, category_id, zip_code) VALUES($1,$2,$3,$4,$5) RETURNING id`,
-      [user_id, name, description, category_id, zip_code]  
+      `INSERT INTO organizations(user_id, name, description, category_id, zip_code, address, brand_colors) VALUES($1,$2,$3,$4,$5,$6, $7) RETURNING id`,
+      [user_id, name, description, category_id, zip_code, address, brand_colors]  
     );
 
     await client.query("COMMIT");
@@ -175,7 +175,7 @@ app.post("/api/events", async (req, res) => {
   Update the details of an existing event
   Can be used by organizations to update any and all details of their event, other than the organization id associated with it
 */
-app.put("/api/events/:id", async (req, res) => {
+/*app.put("/api/events/:id", async (req, res) => {
   try {
     const { name, description, start_time, end_time, address, city, state, zip_code } = req.body;
 
@@ -191,6 +191,23 @@ app.put("/api/events/:id", async (req, res) => {
 
     res.json({ success: true });
 
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});*/
+app.put("/api/events/:id", async (req, res) => {
+  try {
+    const { name, description, start_time, end_time, address, city, state, zip_code, color } = req.body;
+
+    const result = await pool.query(
+      `UPDATE events SET name=$1, description=$2, start_time=$3, end_time=$4,
+       address=$5, city=$6, state=$7, zip_code=$8, color=$9 WHERE id=$10 RETURNING id`,
+      [name, description, start_time, end_time, address, city, state, zip_code, color, req.params.id]
+    );
+
+    if (result.rowCount === 0) return res.status(404).json({ error: "Event not found" });
+    res.json({ success: true });
   } catch (err) {
     console.error(err);
     res.status(500).send("Database error");
@@ -219,7 +236,7 @@ app.get("/api/events", async (req, res) => {
   Get a specific event by its ID 
   This is meant for viewing the details of one specific event for both volunteers and organizations
 */
-app.get("/api/events/:id", async (req, res) => {
+/*app.get("/api/events/:id", async (req, res) => {
   try {
     const result = await pool.query(
       "SELECT * FROM events WHERE id = $1",
@@ -237,35 +254,56 @@ app.get("/api/events/:id", async (req, res) => {
     console.error(err);
     res.status(500).send("Database error");
   }
-});
-
-/*
-  Get all of the events linked to the specified organization id
-  publishedOnly = false (default): Used for organizations to view all of their own events 
-  publishedOnly = true: Used for volunteers to view all published events for a specific organization (filter)
-*/
-app.get("/api/organizations/:id/events", async (req, res) => {
+});*/
+app.get("/api/events", async (req, res) => {
   try {
-    const { publishedOnly } = req.query;
-
-    let query = `SELECT * FROM events WHERE organization_id = $1`;
-
-    const params = [req.params.id];
-
-    //Only get published events (for volunteers to view)
-    if (publishedOnly === "true") {
-      query += ` AND status = 'PUBLISHED'`;
-    }
-
-    query += ` ORDER BY start_time`;
-
-    const result = await pool.query(query, params);
-
+    const result = await pool.query(`
+      SELECT e.*,
+             COALESCE(
+               json_agg(ec.name) FILTER (WHERE ec.name IS NOT NULL),
+               '[]'
+             ) AS tags
+      FROM events e
+      LEFT JOIN event_category_links ecl ON ecl.event_id = e.id
+      LEFT JOIN event_categories ec ON ec.id = ecl.event_category_id
+      WHERE e.status = 'PUBLISHED'
+      GROUP BY e.id
+      ORDER BY e.start_time
+    `);
     res.json(result.rows);
-
   } catch (err) {
     console.error(err);
     res.status(500).send("Database error");
+  }
+});
+
+app.post("/api/events/:id/tags", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { tags } = req.body; // array of category name strings
+    const event_id = req.params.id;
+
+    await client.query("DELETE FROM event_category_links WHERE event_id = $1", [event_id]);
+
+    for (const tagName of tags) {
+      const catResult = await client.query(
+        "SELECT id FROM event_categories WHERE name = $1",
+        [tagName]
+      );
+      if (catResult.rowCount > 0) {
+        await client.query(
+          "INSERT INTO event_category_links(event_id, event_category_id) VALUES($1,$2)",
+          [event_id, catResult.rows[0].id]
+        );
+      }
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  } finally {
+    client.release();
   }
 });
 
@@ -420,6 +458,104 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
+app.get("/api/volunteers/zip_code", async (req, res) => {
+  try {
+    const { user_id } = req.query;
+    if (!user_id) return res.status(400).json({ zip_code: null });
+    const result = await pool.query(
+      "SELECT zip_code FROM volunteers WHERE user_id = $1",  // ✅ correct
+      [user_id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ zip_code: null });
+    res.json({ zip_code: result.rows[0].zip_code ?? null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+app.get("/api/organizations/zip_code", async (req, res) => {
+  try {
+    const { user_id } = req.query;
+    if (!user_id) return res.status(400).json({ zip_code: null });
+    const result = await pool.query(
+      "SELECT zip_code FROM organizations WHERE user_id = $1", 
+      [user_id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ zip_code: null });
+    res.json({ zip_code: result.rows[0].zip_code ?? null });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+app.get("/api/events/:id/registrations/count", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT COUNT(*) AS total FROM event_registrations WHERE event_id = $1`,
+      [req.params.id]
+    );
+    res.json({ total: parseInt(result.rows[0].total) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+app.get("/api/events/:id/registrations", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT v.full_name, u.email, u.phone_number,
+              er.registered_at
+       FROM event_registrations er
+       JOIN volunteers v ON v.id = er.volunteer_id
+       JOIN users u ON u.id = v.user_id
+       WHERE er.event_id = $1
+       ORDER BY er.registered_at`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+app.get("/api/volunteers/:id/registrations", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT e.* FROM events e
+       JOIN event_registrations er ON er.event_id = e.id
+       JOIN volunteers v ON v.id = er.volunteer_id
+       WHERE v.user_id = $1
+       ORDER BY e.start_time`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+app.get("/api/volunteers/:id/badges", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT b.name, b.description, b.image_url, vb.earned_at
+       FROM volunteer_badges vb
+       JOIN badges b ON b.id = vb.badge_id
+       WHERE vb.volunteer_id = $1
+       ORDER BY vb.earned_at DESC`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
 /*
   Get a volunteer's profile by their user ID
   Returns full_name, email, phone, and profile info for the logged-in volunteer
@@ -517,4 +653,315 @@ app.get("/api/organizations/by-user/:userId", async (req, res) => {
   res.json(result.rows[0]);
 });
 
+
+// Lianna adding orgs for front end :P
+// get biz name 
+app.get("/api/organizations/buisnessname", async (req, res) => {
+  try{
+    const { user_id } = req.query;
+
+    const result = await pool.query(
+        "SELECT name FROM organizations WHERE user_id = $1",
+        [user_id]
+    );
+    res.json(result.rows[0]);
+  }
+  catch(err){
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+// get address
+app.get("/api/organizations/address", async (req, res) => {
+  try {
+    const { user_id } = req.query;
+    const result = await pool.query(
+      "SELECT address FROM organizations WHERE user_id = $1",
+      [user_id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ address: null });
+    res.json({ address: result.rows[0].address }); 
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+// get motto
+app.get("/api/organizations/motto", async (req, res) => {
+  try{
+    const { user_id } = req.query;
+
+    const result = await pool.query(
+        "SELECT description FROM organizations WHERE user_id = $1",
+        [user_id]
+    );
+    res.json({ motto: result.rows[0].description });
+  }
+  catch(err){
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+// get brand colors
+app.get("/api/organizations/brand_colors", async (req, res) => {
+  try {
+    const { user_id } = req.query;
+    const result = await pool.query(
+      "SELECT brand_colors FROM organizations WHERE user_id = $1",
+      [user_id]
+    );
+    res.json({ colors: result.rows[0]?.brand_colors || [] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+ 
+app.put("/api/organizations/profile", async (req, res) => {
+  try {
+    const { user_id, name, address, zip_code, motto, brand_colors } = req.body;
+
+    await pool.query(
+      `UPDATE organizations 
+       SET name = $1, address = $2, zip_code = $3, description = $4, brand_colors = $5
+       WHERE user_id = $6`,
+      [name, address, zip_code, motto, brand_colors, user_id]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+app.put("/api/volunteers/profile", async (req, res) => {
+  try {
+    const { user_id, firstName, lastName, zip_code } = req.body;
+
+    await pool.query(
+      `UPDATE volunteers SET full_name = $1, zip_code = $2 WHERE user_id = $3`,
+      [`${firstName} ${lastName}`, zip_code, user_id]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+}); 
+
+// Save roles for an event (called after event is created/edited)
+app.post("/api/events/:id/roles", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { roles } = req.body; // [{ name, spots }]
+    const event_id = req.params.id;
+
+    // Delete existing roles first (handles edits cleanly)
+    await client.query("DELETE FROM event_roles WHERE event_id = $1", [event_id]);
+
+    // Insert new roles
+    for (const role of roles) {
+      if (!role.name?.trim()) continue; // skip blank roles
+      await client.query(
+        "INSERT INTO event_roles(event_id, name, spots) VALUES($1, $2, $3)",
+        [event_id, role.name.trim(), parseInt(role.spots) || 0]
+      );
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  } finally {
+    client.release();
+  }
+});
+
+// Get all roles for an event with spots filled count
+app.get("/api/events/:id/roles", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT er.id, er.name, er.spots,
+              COUNT(err.id) AS filled
+       FROM event_roles er
+       LEFT JOIN event_role_registrations err ON err.role_id = er.id
+       WHERE er.event_id = $1
+       GROUP BY er.id
+       ORDER BY er.id`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+// Volunteer signs up for a specific role
+app.post("/api/roles/:id/register", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { volunteer_id } = req.body;
+    const role_id = req.params.id;
+
+    // Check spots available
+    const roleResult = await client.query(
+      `SELECT er.spots, COUNT(err.id) AS filled
+       FROM event_roles er
+       LEFT JOIN event_role_registrations err ON err.role_id = er.id
+       WHERE er.id = $1
+       GROUP BY er.id`,
+      [role_id]
+    );
+
+    if (roleResult.rowCount === 0) {
+      return res.status(404).json({ error: "Role not found" });
+    }
+
+    const { spots, filled } = roleResult.rows[0];
+    if (parseInt(filled) >= parseInt(spots)) {
+      return res.status(400).json({ error: "No spots available" });
+    }
+
+    await client.query(
+      "INSERT INTO event_role_registrations(role_id, volunteer_id) VALUES($1, $2)",
+      [role_id, volunteer_id]
+    );
+
+    res.json({ success: true });
+  } catch (err) {
+    if (err.code === "23505") {
+      return res.status(409).json({ error: "Already registered for this role" });
+    }
+    console.error(err);
+    res.status(500).send("Database error");
+  } finally {
+    client.release();
+  }
+});
+
+// Unregister volunteer from a role
+app.delete("/api/roles/:id/register", async (req, res) => {
+  try {
+    const { volunteer_id } = req.body;
+    const result = await pool.query(
+      "DELETE FROM event_role_registrations WHERE role_id = $1 AND volunteer_id = $2",
+      [req.params.id, volunteer_id]
+    );
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "Registration not found" });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+// Get all volunteers signed up for a role (for orgs to see)
+app.get("/api/roles/:id/volunteers", async (req, res) => {
+  try {
+    const result = await pool.query(
+      `SELECT v.id, v.full_name, u.email, u.phone_number
+       FROM event_role_registrations err
+       JOIN volunteers v ON v.id = err.volunteer_id
+       JOIN users u ON u.id = v.user_id
+       WHERE err.role_id = $1`,
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+/*
+  KEEP AT END SO OTHER ROUTES ARE TAKEN !!
+  Get all of the events linked to the specified organization id
+  publishedOnly = false (default): Used for organizations to view all of their own events 
+  publishedOnly = true: Used for volunteers to view all published events for a specific organization (filter)
+*/
+app.get("/api/organizations/:id/events", async (req, res) => {
+  try {
+    const { publishedOnly } = req.query;
+
+    let query = `SELECT * FROM events WHERE organization_id = $1`;
+
+    const params = [req.params.id];
+
+    //Only get published events (for volunteers to view)
+    if (publishedOnly === "true") {
+      query += ` AND status = 'PUBLISHED'`;
+    }
+
+    query += ` ORDER BY start_time`;
+
+    const result = await pool.query(query, params);
+
+    res.json(result.rows);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+app.post("/api/events", async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { organization_id, name, description, start_time, end_time, address, city, state, zip_code, color } = req.body;
+
+    if (!organization_id || !name || !description || !start_time || !end_time || !zip_code) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const result = await client.query(
+      `INSERT INTO events (organization_id,name,description,start_time,end_time,address,city,state,zip_code,color)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING id`,
+      [organization_id, name, description, start_time, end_time, address, city, state, zip_code, color]
+    );
+
+    res.json({ id: result.rows[0].id });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  } finally {
+    client.release();
+  }
+});
+
+app.get("/api/organizations/:id", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM organizations WHERE id = $1",
+      [req.params.id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: "Organization not found" });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+
+app.delete("/api/events/:id", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "DELETE FROM events WHERE id = $1 RETURNING id",
+      [req.params.id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: "Event not found" });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
 export default app;
