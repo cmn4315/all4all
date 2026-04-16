@@ -646,7 +646,6 @@ app.get("/api/events/by_zip/:zip_code", async (req, res) => {
       return res.status(400).send("zip code is required.");
     }
 
-    console.log(`sending query, zip = ${zip_code}`);
     const result = await pool.query(
       `SELECT * FROM events WHERE zip_code = $1`,
       [zip_code]
