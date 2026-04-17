@@ -3,7 +3,7 @@ import bcrypt from "bcrypt";
 import { pool } from "./db.js";
 import jwt from "jsonwebtoken";
 import multer from "multer";
-import { mkdirSync } from "fs";
+import { mkdirSync, readdirSync, existsSync } from "fs";
 import { resolve, join } from "path";
 
 // For using env variables (i.e. JWT_SECRET for tokens)
@@ -596,10 +596,6 @@ app.get("/api/event_categories/:filter", async (req, res) => {
   try {
     const { filter } = req.params;
 
-    if (!filter) {
-      return res.status(400).send("name is required.");
-    }
-
     const result = await pool.query(
       "SELECT * FROM event_categories WHERE name LIKE $1",
       [`%${filter}%`]
@@ -638,13 +634,9 @@ app.post("/api/event/add_categories", async (req, res) => {
 });
 
 // Get all events in a particular zip code
-app.get("/api/events/by_zip/:zip_code", async (req, res) => {
+app.get("/api/events_by_zip/:zip_code", async (req, res) => {
   try {
     const { zip_code } = req.params;
-
-    if (!zip_code) {
-      return res.status(400).send("zip code is required.");
-    }
 
     const result = await pool.query(
       `SELECT * FROM events WHERE zip_code = $1`,
@@ -659,13 +651,9 @@ app.get("/api/events/by_zip/:zip_code", async (req, res) => {
 });
 
 // Get all events associated with a particular category
-app.get("/api/events/by_cat/:category_id", async (req, res) => {
+app.get("/api/events_by_cat/:category_id", async (req, res) => {
   try {
     const { category_id } = req.params;
-
-    if (!category_id) {
-      return res.status(400).send("category_id is required.");
-    }
 
     const result = await pool.query(
       `SELECT events.* FROM events 
@@ -903,13 +891,16 @@ app.get("/api/images/:type/:userId", (req, res) => {
       return res.status(400).json({ error: "Invalid image type" });
     }
 
-    const dirPath = join(__dirname, "uploads", type, userId);
+    let basePath = resolve('./uploads');
+    const dirPath = join(basePath, type, userId);
+    console.log(`${dirPath}`);
 
-    if (!fs.existsSync(dirPath)) {
+    if (!existsSync(dirPath)) {
+      console.log("Dir doesn't exist");
       return res.status(404).json({ error: "No images found" });
     }
 
-    const files = fs.readdirSync(dirPath);
+    const files = readdirSync(dirPath);
 
     // filter dotfiles
     const imageFiles = files.filter(file => !file.startsWith("."));

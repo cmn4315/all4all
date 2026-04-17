@@ -824,6 +824,22 @@ describe("POST /api/event_categories", () => {
     expect(res.body).toHaveProperty("id");
   });
 
+  it("fails when category already exists", async () => {
+    const unique = randomUUID();
+    const res = await request(app)
+      .post("/api/event_categories")
+      .send({ name: `Music${unique}` });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("id");
+
+    const secondRes = await request(app)
+      .post("/api/event_categories")
+      .send({ name: `Music${unique}` });
+
+    expect(secondRes.status).toBe(400);
+  });
+
   it("fails when name missing", async () => {
     const res = await request(app)
       .post("/api/event_categories")
@@ -893,29 +909,68 @@ describe("POST /api/event/add_categories", () => {
 
     expect(res.status).toBe(201);
   });
+
+  it("fails with either id missing", async () => {
+    const unique = randomUUID();
+    // create category
+    const catRes = await request(app)
+      .post("/api/event_categories")
+      .send({ name: `AttachTest${unique}` });
+
+    const categoryId = catRes.body.id;
+
+    const eventRes = await create_event();
+    const eventId = eventRes.body.id;
+    console.log(`Adding Event Category, eventId = ${eventId}, catId = ${categoryId}`);
+
+    const res = await request(app)
+      .post("/api/event/add_categories")
+      .send({
+        event_category_id: categoryId
+      });
+
+    expect(res.status).toBe(400);
+
+    const secRes = await request(app)
+      .post("/api/event/add_categories")
+      .send({
+        event_id: eventId
+      });
+
+    expect(secRes.status).toBe(400);
+  });
 });
 
-describe("GET /api/events/by_zip/:zip_code", () => {
+describe("GET /api/events_by_zip/:zip_code", () => {
   it("returns events for zip", async () => {
     const eventRes = await create_event();
 
     const res = await request(app)
-      .get("/api/events/by_zip/14623"); // search for the event we made
+      .get("/api/events_by_zip/14623"); // search for the event we made
 
     expect(res.status).toBe(200);
     expect(res.body.length).toBeGreaterThan(0);
   });
 
+  it("fails with no zip", async () => {
+    const eventRes = await create_event();
+
+    const res = await request(app)
+      .get("/api/events_by_zip/"); // search for the event we made
+
+    expect(res.status).toBe(404);
+  });
+
   it("returns empty array if none found", async () => {
     const res = await request(app)
-      .get("/api/events/by_zip/00000");
+      .get("/api/events_by_zip/00000");
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
   });
 });
 
-describe("GET /api/events/by_cat/:category_id", () => {
+describe("GET /api/events_by_cat/:category_id", () => {
   it("returns events for category", async () => {
     const unique = randomUUID();
     // create category
@@ -938,15 +993,24 @@ describe("GET /api/events/by_cat/:category_id", () => {
       });
 
     const res = await request(app)
-      .get(`/api/events/by_cat/${categoryId}`);
+      .get(`/api/events_by_cat/${categoryId}`);
 
     expect(res.status).toBe(200);
     expect(res.body.length).toBeGreaterThan(0);
   });
 
+  it("fails with no catId", async () => {
+    const eventRes = await create_event();
+
+    const res = await request(app)
+      .get("/api/events_by_cat/"); // search for the event we made
+
+    expect(res.status).toBe(404);
+  });
+
   it("returns empty array if no matches", async () => {
     const res = await request(app)
-      .get("/api/events/by_cat/999999");
+      .get("/api/events_by_cat/999999");
 
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body)).toBe(true);
