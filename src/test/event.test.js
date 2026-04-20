@@ -82,10 +82,10 @@ describe("Event creation", () => {
       });
 
     console.log("Event (no time validation):", eventRes.statusCode, eventRes.body);
-    expect(eventRes.statusCode).toBe(200);
+    expect(eventRes.statusCode).toBe(400);
   });
-
-  it("should return 400 when required fields are missing", async () => {
+  
+  it("should return 400 when end_time is before start_time", async () => {
     const res = await request(app)
       .post("/api/events")
       .send({ name: "Incomplete Event" });

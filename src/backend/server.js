@@ -65,6 +65,10 @@ const upload = multer({
 
 app.post("/api/badges", upload.single("image"), async (req, res) => {
   try {
+    // In POST /api/badges, at the top of the try block:
+    if (!req.file) {
+      return res.status(400).json({ error: "Image file is required" });
+    }
     const { name, description } = req.body;
     const image_url = req.file ? `/uploads/badges/${req.file.filename}` : null;
     const result = await pool.query(
@@ -243,6 +247,9 @@ app.post("/api/events", async (req, res) => {
 
     if (!organization_id || !name || !description || !start_time || !end_time || !zip_code) {
       return res.status(400).json({ error: "Missing required fields" });
+    }
+    if (new Date(end_time) <= new Date(start_time)) {
+      return res.status(400).json({ error: "end_time must be after start_time" });
     }
 
     const result = await client.query(
