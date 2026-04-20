@@ -489,11 +489,31 @@ export default function ProfilePage() {
           method: "PUT", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_id: user.id, firstName: form.firstName, lastName: form.lastName, zip_code: form.zip_code }),
         });
+        if (form.avatar && form.avatar.startsWith("data:")) {
+          // Convert base64 to blob and upload
+          const blob = await fetch(form.avatar).then(r => r.blob());
+          const fd = new FormData();
+          fd.append("image", blob, "avatar.jpg");
+          const r = await fetch(`/api/users/${user.id}/avatar`, { method: "POST", body: fd });
+          const { image_url } = await r.json();
+          updated.image_url = image_url;
+        }
+
       } else {
         await fetch("/api/organizations/profile", {
           method: "PUT", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_id: user.id, name: form.name, address: form.address, zip_code: form.zip_code, motto: form.motto, brand_colors: form.colors || [] }),
         });
+        if (form.avatar && form.avatar.startsWith("data:")) {
+          // Convert base64 to blob and upload
+          const blob = await fetch(form.avatar).then(r => r.blob());
+          const fd = new FormData();
+          fd.append("image", blob, "avatar.jpg");
+          const r = await fetch(`/api/users/${user.id}/avatar`, { method: "POST", body: fd });
+          const { image_url } = await r.json();
+          updated.image_url = image_url;
+        }
+
       }
     } catch (err) { console.error("Failed to save profile:", err); }
     localStorage.setItem("user", JSON.stringify(updated));

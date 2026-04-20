@@ -198,6 +198,14 @@ function EventCard({ event, onViewDetails }) {
           <span>📍 {event.city}, {event.state} · {event.distance_miles} mi away</span>
         )}
       </div>
+      {event.recurrence && (
+      <span style={{
+        background: "#fdf4ff", color: "#7c3aed", fontSize: 11, fontWeight: 700,
+        padding: "2px 9px", borderRadius: 99, border: "1px solid #e9d5ff",
+      }}>
+        🔁 {event.recurrence === "biweekly" ? "Every 2 weeks" : event.recurrence.charAt(0).toUpperCase() + event.recurrence.slice(1)}
+      </span>
+    )}
 
       <div className="home-card__actions">
         <button

@@ -225,6 +225,14 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
         <span>📅 {formatDate(event.start_time)} · {formatTime(event.start_time)} – {formatTime(event.end_time)}</span>
         {event.city && <span>📍 {event.city}, {event.state} · {event.distance_miles} mi away</span>}
       </div>
+          {event.recurrence && (
+      <span style={{
+        background: "#fdf4ff", color: "#7c3aed", fontSize: 11, fontWeight: 700,
+        padding: "2px 9px", borderRadius: 99, border: "1px solid #e9d5ff",
+      }}>
+        🔁 {event.recurrence === "biweekly" ? "Every 2 weeks" : event.recurrence.charAt(0).toUpperCase() + event.recurrence.slice(1)}
+      </span>
+    )}
 
       {/* Action buttons */}
       <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
@@ -540,6 +548,7 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
     zip_code:      event?.zip_code  || "",
     color:         event?.color     || "#15803d",
     tags:           event?.tags || "",
+    recurrence: event?.recurrence || "",
   });
 
   const [roles, setRoles] = useState(event?.roles ?? [{ id: Date.now(), name: "", spots: "" }]);
@@ -559,7 +568,6 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
   // ── Fetch available tags + badges from DB ──
   const [availableTags, setAvailableTags] = useState([]);
   const [availableBadges, setAvailableBadges] = useState([]);
-
   function set(key, val) {
     setForm(f => ({ ...f, [key]: val }));
     setErrors(e => ({ ...e, [key]: null }));
@@ -819,41 +827,57 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
 
           {/* Tab 0 — Details */}
           {tab === 0 && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-              <div>
-                <label style={lbl}>Event Name *</label>
-                <input value={form.name} onChange={e => set("name", e.target.value)} placeholder="Community Cleanup Day" style={inp("name")} />
-                {errors.name && <div style={errStyle}>{errors.name}</div>}
-              </div>
-              <div>
-                <label style={lbl}>Description *</label>
-                <textarea value={form.description} onChange={e => set("description", e.target.value)}
-                  placeholder="Describe the event, what volunteers will do, what to bring…"
-                  style={{ ...inp("description"), minHeight: 90, resize: "vertical" }} />
-                {errors.description && <div style={errStyle}>{errors.description}</div>}
-              </div>
-              <div style={row}>
-                <div style={{ flex: 1 }}>
-                  <label style={lbl}>Contact Email</label>
-                  <input type="email" value={form.contact_email} onChange={e => set("contact_email", e.target.value)} placeholder="contact@org.org" style={inp()} />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <label style={lbl}>Contact Phone</label>
-                  <input type="tel" value={form.contact_phone} onChange={e => set("contact_phone", e.target.value)} placeholder="(585) 555-0100" style={inp()} />
-                </div>
-              </div>
-            </div>
-          )}
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <label style={lbl}>Event Color</label>
-            <input
-              type="color"
-              value={form.color}
-              onChange={e => set("color", e.target.value)}
-              style={{ width: 40, height: 36, padding: 2, borderRadius: 8, border: "1.5px solid #e2e8f0", cursor: "pointer" }}
+  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+    <div>
+      <label style={lbl}>Event Name *</label>
+      <input value={form.name} onChange={e => set("name", e.target.value)} placeholder="Community Cleanup Day" style={inp("name")} />
+      {errors.name && <div style={errStyle}>{errors.name}</div>}
+    </div>
+    <div>
+      <label style={lbl}>Description *</label>
+      <textarea value={form.description} onChange={e => set("description", e.target.value)}
+        placeholder="Describe the event, what volunteers will do, what to bring…"
+        style={{ ...inp("description"), minHeight: 90, resize: "vertical" }} />
+      {errors.description && <div style={errStyle}>{errors.description}</div>}
+    </div>
+    <div style={row}>
+      <div style={{ flex: 1 }}>
+        <label style={lbl}>Contact Email</label>
+        <input type="email" value={form.contact_email} onChange={e => set("contact_email", e.target.value)} placeholder="contact@org.org" style={inp()} />
+      </div>
+      <div style={{ flex: 1 }}>
+        <label style={lbl}>Contact Phone</label>
+        <input type="tel" value={form.contact_phone} onChange={e => set("contact_phone", e.target.value)} placeholder="(585) 555-0100" style={inp()} />
+      </div>
+    </div>
+
+    {/* ✅ Color picker now INSIDE Tab 0 only */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <label style={lbl}>Event Color</label>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          {brandColors.length > 0 && brandColors.map((c, i) => (
+            <button
+              key={i}
+              onClick={() => set("color", c)}
+              title={c}
+              style={{
+                width: 32, height: 32, borderRadius: "50%", background: c,
+                border: form.color === c ? "3px solid #1e293b" : "2px solid #e2e8f0",
+                cursor: "pointer", flexShrink: 0, transition: "border .15s",
+              }}
             />
-            <span style={{ fontSize: 12.5, color: "#64748b" }}>Shown as accent color on event cards</span>
-          </div>
+          ))}
+          <input
+            type="color"
+            value={form.color}
+            onChange={e => set("color", e.target.value)}
+            style={{ width: 32, height: 32, padding: 2, borderRadius: 8, border: "1.5px solid #e2e8f0", cursor: "pointer" }}
+          />
+          <span style={{ fontSize: 12, color: "#64748b" }}>Brand colors or custom</span>
+        </div>
+      </div>
+    </div>
+  )}
 
           {/* Tab 1 — Location & Time */}
           {tab === 1 && (
@@ -890,6 +914,15 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
                   <input value={form.zip_code} onChange={e => set("zip_code", e.target.value)} placeholder="14604" style={inp("zip_code")} />
                   {errors.zip_code && <div style={errStyle}>{errors.zip_code}</div>}
                 </div>
+                <div>
+                <label style={lbl}>Recurrence</label>
+                <select value={form.recurrence} onChange={e => set("recurrence", e.target.value)} style={inp()}>
+                  <option value="">One-time event</option>
+                  <option value="weekly">Weekly</option>
+                  <option value="biweekly">Every two weeks</option>
+                  <option value="monthly">Monthly</option>
+                </select>
+              </div>
               </div>
             </div>
           )}
@@ -1090,52 +1123,54 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
         </div>
 
         {/* Footer */}
-        <div style={{
-          padding: "14px 24px 18px", borderTop: "1px solid #f1f5f9",
-          display: "flex", gap: 8, flexShrink: 0, background: "#fff",
-        }}>
-          
-          {isEdit && (
-            <button
-              onClick={() => handleSubmit("PUBLISHED")}
-              disabled={loading}
-              style={{
-                width: "100%", padding: "10px 0", borderRadius: 10, border: "none",
-                background: "linear-gradient(135deg,#15803d,#166534)",
-                color: "#fff", fontSize: 13, fontWeight: 700,
-                cursor: "pointer", fontFamily: "inherit", marginBottom: 8,
-                boxShadow: "0 2px 8px rgba(21,128,61,0.3)",
-              }}
-            >
-              {loading ? "Publishing…" : "🚀 Publish / Re-publish Event"}
-            </button>
-          )}
-          {tab > 0 && (
-            <button onClick={() => setTab(t => t - 1)} style={{
-              padding: "10px 18px", borderRadius: 10, border: "1.5px solid #e2e8f0",
-              background: "#f8fafc", color: "#15803d", fontSize: 13.5, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
-            }}>← Back</button>
-          )}
-          {tab === STEPS.length - 1 && (
-          <>
-            <button onClick={() => handleSubmit("DRAFT")} disabled={loading} style={{
-              flex: 1, padding: "10px 0", borderRadius: 10, border: "1.5px solid #e2e8f0",
-              background: "#f8fafc", color: "#475569", fontSize: 13.5, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
-            }}>
-              {loading ? "Saving…" : "Save as Draft"}
-            </button>
-            <button onClick={() => handleSubmit("PUBLISHED")} disabled={loading} style={{
-              flex: 2, padding: "10px 0", borderRadius: 10, border: "none",
-              background: "#15803d", color: "#fff", fontSize: 13.5, fontWeight: 700,
-              cursor: "pointer", fontFamily: "inherit",
-            }}>
-              {loading ? "Publishing…" : "Publish Event"}
-            </button>
-          </>
-        )}
-        </div>
+        {/* Footer */}
+<div style={{
+  padding: "14px 24px 18px", borderTop: "1px solid #f1f5f9",
+  display: "flex", gap: 8, flexShrink: 0, background: "#fff",
+}}>
+  {isEdit && tab === STEPS.length - 1 && (
+    <button onClick={() => handleSubmit("PUBLISHED")} disabled={loading} style={{
+      width: "100%", padding: "10px 0", borderRadius: 10, border: "none",
+      background: "linear-gradient(135deg,#15803d,#166534)",
+      color: "#fff", fontSize: 13, fontWeight: 700,
+      cursor: "pointer", fontFamily: "inherit", marginBottom: 8,
+      boxShadow: "0 2px 8px rgba(21,128,61,0.3)",
+    }}>
+      {loading ? "Publishing…" : "🚀 Publish / Re-publish Event"}
+    </button>
+  )}
+  {tab > 0 && (
+    <button onClick={() => setTab(t => t - 1)} style={{
+      padding: "10px 18px", borderRadius: 10, border: "1.5px solid #e2e8f0",
+      background: "#f8fafc", color: "#15803d", fontSize: 13.5, fontWeight: 700,
+      cursor: "pointer", fontFamily: "inherit",
+    }}>← Back</button>
+  )}
+  {tab < STEPS.length - 1 ? (
+    <button onClick={() => setTab(t => t + 1)} style={{
+      flex: 1, padding: "10px 0", borderRadius: 10, border: "none",
+      background: "#0f172a", color: "#fff", fontSize: 13.5, fontWeight: 700,
+      cursor: "pointer", fontFamily: "inherit",
+    }}>Next →</button>
+  ) : (
+    <>
+      <button onClick={() => handleSubmit("DRAFT")} disabled={loading} style={{
+        flex: 1, padding: "10px 0", borderRadius: 10, border: "1.5px solid #e2e8f0",
+        background: "#f8fafc", color: "#475569", fontSize: 13.5, fontWeight: 700,
+        cursor: "pointer", fontFamily: "inherit",
+      }}>
+        {loading ? "Saving…" : "Save as Draft"}
+      </button>
+      <button onClick={() => handleSubmit("PUBLISHED")} disabled={loading} style={{
+        flex: 2, padding: "10px 0", borderRadius: 10, border: "none",
+        background: "#15803d", color: "#fff", fontSize: 13.5, fontWeight: 700,
+        cursor: "pointer", fontFamily: "inherit",
+      }}>
+        {loading ? "Publishing…" : "Publish Event"}
+      </button>
+    </>
+  )}
+</div>
       </div>
     </div>
   );
