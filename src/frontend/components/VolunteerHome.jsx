@@ -4,7 +4,6 @@ import "../styles/home.css";
 import logo from "../../assets/all4allLogo.png";
 
 
-// ─── API helpers ──────────────────────────────────────────────────────────────
 const API = {
   getVolunteer: async (userId) => {
     const res = await fetch(`/api/volunteers/${userId}`);
@@ -18,7 +17,6 @@ const API = {
   },
 };
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
 function initials(name = "") {
   return name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 }
@@ -38,7 +36,6 @@ function calcHours(start, end) {
 
 const DISTANCES = ["Any Distance", "< 1 mi", "< 2 mi", "< 5 mi", "< 10 mi"];
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
 function Avatar({ src, name, size = 38 }) {
   if (src) {
     return <img src={src} alt={name} className="home-avatar" style={{ width: size, height: size }} />;
@@ -73,65 +70,6 @@ function CategoryPill({ label, active, onClick }) {
   );
 }
 
-// ─── EventCard ────────────────────────────────────────────────────────────────
-/*function EventCard({ event, onViewDetails }) {
-  const [expanded, setExpanded] = useState(false);
-  const hours = calcHours(event.start_time, event.end_time);
-
-  return (
-    <div className="home-card">
-      <div className="home-card__top">
-        <div style={{ flex: 1 }}>
-          <div className="home-card__badges">
-            {event.category && (
-              <span className="home-card__tag home-card__tag--category">{event.category}</span>
-            )}
-            {hours && (
-              <span className="home-card__tag home-card__tag--hours">{hours} hrs</span>
-            )}
-          </div>
-          <h3 className="home-card__title">{event.name}</h3>
-          <p className="home-card__org">{event.organization_name}</p>
-        </div>
-      </div>
-
-      <p className="home-card__desc">{event.description}</p>
-
-      {expanded && event.roles?.length > 0 && (
-        <div>
-          <p className="home-card__roles-title">Available Roles</p>
-          <div className="home-card__roles">
-            {event.roles.map(r => (
-              <span key={r} className="home-card__role-chip">{r}</span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="home-card__meta">
-        <span>📅 {formatDate(event.start_time)} · {formatTime(event.start_time)} – {formatTime(event.end_time)}</span>
-        {event.distance_miles != null && (
-          <span>📍 {event.city}, {event.state} · {event.distance_miles} mi away</span>
-        )}
-      </div>
-
-      <div className="home-card__actions">
-        <button
-          className="home-card__btn home-card__btn--toggle"
-          onClick={() => setExpanded(p => !p)}
-        >
-          {expanded ? "Show less" : "See roles"}
-        </button>
-        <button
-          className="home-card__btn home-card__btn--register"
-          onClick={() => onViewDetails(event)}
-        >
-          View Details
-        </button>
-      </div>
-    </div>
-  );
-}*/
 function EventCard({ event, onViewDetails }) {
   const hours = calcHours(event.start_time, event.end_time);
 
@@ -302,7 +240,7 @@ function EventDetailModal({
       spots_available: r.spots - parseInt(r.filled),
     }))))
     .catch(console.error);
-  fetch(`/api/events/${event.id}/badges`)   // ✅ add this
+  fetch(`/api/events/${event.id}/badges`)
     .then(r => r.json())
     .then(setEventBadges)
     .catch(console.error);
@@ -326,48 +264,14 @@ function EventDetailModal({
   function toggleRole(roleId) {
     setSelectedRoles(prev => {
       const next = new Set();
-      if (!prev.has(roleId)) next.add(roleId); // deselect if same, else select new
+      if (!prev.has(roleId)) next.add(roleId); 
       return next;
     });
   }
 
-  /*
-  async function handleRegister() {
-    if (!volunteerId) return alert("Please log in to register.");
-    setLoading(true);
-    try {
-      if (!registered) {
-        const res = await fetch(`/api/events/${event.id}/register`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ volunteer_id: volunteerId }),
-        });
-        if (!res.ok) throw new Error(await res.text());
-        setRegistered(true);
-        onRegisterChange?.(event.id, true);
-      } else {
-        const res = await fetch(`/api/events/${event.id}/register`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ volunteer_id: volunteerId }),
-        });
-        if (!res.ok) throw new Error(await res.text());
-        setRegistered(false);
-        onRegisterChange?.(event.id, false);
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
-  */
-
   async function handleRegister() {
     if (!volunteerId) return alert("Please log in to register.");
 
-    // Require a role to be selected if roles exist
     if (!registered && roles.length > 0 && selectedRoles.size === 0) {
       alert("Please select a role before registering.");
       return;
@@ -435,7 +339,6 @@ function EventDetailModal({
   if (!event) return null;
 
   const totalSpots = roles.reduce((sum, r) => sum + (r.spots_available ?? 0), 0);
-  //const totalSpots = roles.reduce((sum, r) => sum + (r.spots_available ?? 0), 0);
   const badges = eventBadges;
 
   return (
@@ -930,21 +833,21 @@ function MyEventsSlider({ events, onViewDetails, open, onToggle }) {
 export default function VolunteerHome() {
   const navigate = useNavigate();
 
-  const [volunteer, setVolunteer]           = useState(null);
-  const [events, setEvents]                 = useState([]);
-  const [loading, setLoading]               = useState(true);
-  const [search, setSearch]                 = useState("");
+  const [volunteer, setVolunteer] = useState(null);
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const [activeCategories, setActiveCategories] = useState(["All"]);
-  const [distanceFilter, setDistance]       = useState("Any Distance");
-  const [dateFrom, setDateFrom]             = useState("");
-  const [dateTo, setDateTo]                 = useState("");
-  const [showFilters, setShowFilters]       = useState(false);
-  const [toast, setToast]                   = useState(null);
-  const [categories, setCategories]         = useState(["All"]);
-  const [categoryErr, setCategoryErr]       = useState(null);
+  const [distanceFilter, setDistance] = useState("Any Distance");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [categories, setCategories] = useState(["All"]);
+  const [categoryErr, setCategoryErr] = useState(null);
 
   // ── Modal state ──
-  const [activeEvent, setActiveEvent]       = useState(null);
+  const [activeEvent, setActiveEvent] = useState(null);
   const [myRegistrations, setMyRegistrations] = useState(new Set());
 
   const [myRegisteredEvents, setMyRegisteredEvents] = useState([]);
@@ -986,7 +889,7 @@ export default function VolunteerHome() {
       .then(r => r.json())
       .then(data => {
         setMyRegisteredEvents(data);
-        setMyRegistrations(new Set(data.map(ev => ev.id))); // ✅ pre-populate on load
+        setMyRegistrations(new Set(data.map(ev => ev.id))); 
       })
       .finally(() => setLoading(false));
 
@@ -1019,7 +922,6 @@ export default function VolunteerHome() {
       return next;
     });
 
-    // ✅ Keep the slider list in sync
     if (!nowRegistered) {
       setMyRegisteredEvents(prev => prev.filter(e => e.id !== eventId));
     } else if (activeEvent) {
@@ -1166,7 +1068,7 @@ export default function VolunteerHome() {
                   setDistance("Any Distance");
                   setDateFrom("");
                   setDateTo("");
-                  setActiveCategories(["All"]); // ✅ fixed from setCategory
+                  setActiveCategories(["All"]);
                 }}
               >
                 Clear all

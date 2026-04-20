@@ -25,12 +25,12 @@ function fmtHours(h) {
 
 // ─── Volunteer Service Hours Panel ───────────────────────────────────────────
 function VolunteerServicePanel({ userId }) {
-  const [rows, setRows]           = useState([]);
-  const [sortBy, setSortBy]       = useState("date");
+  const [rows, setRows] = useState([]);
+  const [sortBy, setSortBy] = useState("date");
   const [filterOrg, setFilterOrg] = useState("All");
   const [filterTag, setFilterTag] = useState("All");
-  const [fromDate, setFromDate]   = useState("");
-  const [toDate, setToDate]       = useState("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
   useEffect(() => {
     fetch(`/api/volunteers/${userId}/service-hours`)
@@ -151,13 +151,13 @@ function VolunteerServicePanel({ userId }) {
 
 // ─── Org Events + Service Panel ───────────────────────────────────────────────
 function OrgServicePanel({ orgId }) {
-  const [rows, setRows]         = useState([]);
-  const [sortBy, setSortBy]     = useState("date");
+  const [rows, setRows] = useState([]);
+  const [sortBy, setSortBy] = useState("date");
   const [filterTag, setFilterTag] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
   const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate]     = useState("");
-  const [metric, setMetric]     = useState("hours"); // "hours" | "volunteers"
+  const [toDate, setToDate] = useState("");
+  const [metric, setMetric] = useState("hours");
 
   useEffect(() => {
     fetch(`/api/organizations/${orgId}/event-stats`)
@@ -202,7 +202,6 @@ function OrgServicePanel({ orgId }) {
           <div
             key={s.label}
             onClick={() => s.key && setMetric(s.key)}
-            // Add to the backdrop div:
             role="button"
             tabIndex={0}
             onKeyDown={e => (e.key === "Enter" || e.key === " ") && (setShowSettings(false), setEditing(false))}
@@ -333,28 +332,32 @@ export default function ProfilePage() {
   const isVolunteer = user?.role === "VOLUNTEER";
 
   const [showSettings, setShowSettings] = useState(false);
-  const [editing, setEditing]   = useState(false);
-  const [saved, setSaved]       = useState(false);
-  const [errors, setErrors]     = useState({});
+  const [editing, setEditing] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [errors, setErrors] = useState({});
 
-  const [newPass, setNewPass]         = useState("");
+  const [newPass, setNewPass] = useState("");
   const [confirmPass, setConfirmPass] = useState("");
-  const [showPass, setShowPass]       = useState(false);
-  const [passErr, setPassErr]         = useState(null);
-  const [confirmErr, setConfirmErr]   = useState(null);
+  const [showPass, setShowPass] = useState(false);
+  const [passErr, setPassErr] = useState(null);
+  const [confirmErr, setConfirmErr] = useState(null);
 
   const fileRef = useRef(null);
   const [displayName, setDisplayName] = useState("");
 
   // Volunteer-specific
   const [registeredEvents, setRegisteredEvents] = useState([]);
-  const [pastEvents, setPastEvents]             = useState([]);
-  const [volunteerBadges, setVolunteerBadges]   = useState([]);
+  const [pastEvents, setPastEvents] = useState([]);
+  const [volunteerBadges, setVolunteerBadges] = useState([]);
 
   // Org-specific
   const [org, setOrg] = useState(null);
 
   const str = getPasswordStrength(newPass);
+
+  const zipUrl = isVolunteer
+      ? `/api/volunteers/zip_code?user_id=${user.id}`
+      : `/api/organizations/zip_code?user_id=${user.id}`;
 
   useEffect(() => {
     if (!user?.id) return;
@@ -376,9 +379,6 @@ export default function ProfilePage() {
       .then(data => setForm(f => ({ ...f, phone: data.phone })))
       .catch(console.error);
 
-    const zipUrl = isVolunteer
-      ? `/api/volunteers/zip_code?user_id=${user.id}`
-      : `/api/organizations/zip_code?user_id=${user.id}`;
     fetch(zipUrl)
       .then(r => r.json())
       .then(data => setForm(f => ({ ...f, zip_code: data.zip_code || "" })))
@@ -390,19 +390,14 @@ export default function ProfilePage() {
         .then(setOrg)
         .catch(console.error);
 
-      fetch(`/api/organizations/address?user_id=${user.id}`)
+      fetch(`/api/organizations/profile?user_id=${user.id}`)
         .then(r => r.json())
-        .then(data => setForm(f => ({ ...f, address: data.address })))
-        .catch(console.error);
-
-      fetch(`/api/organizations/motto?user_id=${user.id}`)
-        .then(r => r.json())
-        .then(data => setForm(f => ({ ...f, motto: data.motto })))
-        .catch(console.error);
-
-      fetch(`/api/organizations/brand_colors?user_id=${user.id}`)
-        .then(r => r.json())
-        .then(data => setForm(f => ({ ...f, colors: data.colors || [] })))
+        .then(data => setForm(f => ({ 
+          ...f, 
+          address: data.address,
+          motto: data.motto,
+          brand_colors: data.brand_colors || []
+        })))
         .catch(console.error);
     }
 
@@ -536,7 +531,6 @@ export default function ProfilePage() {
     setEditing(false);
   }
 
-  // ── Inner field components (defined inside so they share state) ──
   function VolunteerFields() {
     return (
       <>

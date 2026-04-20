@@ -1132,7 +1132,7 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
         </div>
 
         {/* Footer */}
-        {/* Footer */}
+
 <div style={{
   padding: "14px 24px 18px", borderTop: "1px solid #f1f5f9",
   display: "flex", gap: 8, flexShrink: 0, background: "#fff",
@@ -1184,7 +1184,7 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
     </div>
   );
 }
-// Add this component above OrgHome
+
 function DeleteConfirmModal({ event, onConfirm, onCancel }) {
   return (
     <div style={{
@@ -1232,19 +1232,19 @@ function DeleteConfirmModal({ event, onConfirm, onCancel }) {
 export default function OrgHome() {
   const navigate = useNavigate();
 
-  const [org, setOrg]               = useState(null);
-  const [allEvents, setAllEvents]   = useState([]);
-  const [myEvents, setMyEvents]     = useState([]);
-  const [loading, setLoading]       = useState(true);
-  const [tab, setTab]               = useState("browse");
-  const [search, setSearch]         = useState("");
+  const [org, setOrg] = useState(null);
+  const [allEvents, setAllEvents] = useState([]);
+  const [myEvents, setMyEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("browse");
+  const [search, setSearch] = useState("");
   const [activeCategories, setActiveCategories] = useState(["All"]);
   const [distanceFilter, setDistance] = useState("Any Distance");
-  const [dateFrom, setDateFrom]     = useState("");
-  const [dateTo, setDateTo]         = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [toast, setToast]           = useState(null);
-  const [showModal, setShowModal]   = useState(false);
+  const [toast, setToast] = useState(null);
+  const [showModal, setShowModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState(null);
   const [categories, setCategories] = useState([]);
   const [categoryErr, setCategoryErr] = useState(null);
@@ -1271,7 +1271,6 @@ export default function OrgHome() {
       .catch(() => setCategoryErr("Could not load categories."));
   }, []);
 
-  // ✅ Single fetch for all published events
   useEffect(() => {
     API.getPublishedEvents()
       .then(setAllEvents)
@@ -1328,7 +1327,6 @@ export default function OrgHome() {
 
   const myEventIds = new Set(myEvents.map(e => e.id));
 
-  // ✅ Fixed: "All" check now works correctly
   const filtered = allEvents.filter(ev => {
     const q = search.toLowerCase();
     const matchSearch = !q || ev.name?.toLowerCase().includes(q) || ev.description?.toLowerCase().includes(q) || ev.organization_name?.toLowerCase().includes(q);
