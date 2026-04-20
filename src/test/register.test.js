@@ -988,6 +988,73 @@ describe("upload_image", () => {
   });
 });
 
+describe("GET /api/images/:type/:userId", () => {
+  const testFilePath = path.join(__dirname, "test-image.jpg");
+
+  beforeEach(() => {
+    fs.writeFileSync(testFilePath, "fake image content");
+  });
+
+  afterEach(() => {
+    if (fs.existsSync("./uploads")) {
+      fs.rmSync("./uploads", { recursive: true, force: true });
+    }
+    if (fs.existsSync(testFilePath)) {
+      fs.unlinkSync(testFilePath);
+    }
+  });
+
+  it("returns uploaded image URL", async () => {
+
+    const unique = randomUUID();
+    const uniqueEmail = `test${unique}@test.com`;
+    const uniqueUsername = `test${unique}`;
+
+    // Register volunteer
+    const regRes = await request(app)
+      .post("/api/registerVolunteer")
+      .send({
+        username: uniqueUsername,
+        email: uniqueEmail,
+        password: "pass123",
+        firstName: "Jane",
+        lastName: "Doe",
+        phone: "555-1234"
+      });
+    // upload image first
+    await request(app)
+      .post("/api/upload_image")
+      .field("uploadType", "user")
+      .field("userId", regRes.body.user_id)
+      .attach("file", testFilePath);
+
+    // then retrieve
+    const res = await request(app)
+      .get(`/api/images/user/${regRes.body.user_id}`);
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body.images)).toBe(true);
+    expect(res.body.images.length).toBeGreaterThan(0);
+    expect(res.body.images[0]).toMatch(/\/uploads\/user\//);
+  });
+
+  it("returns 400 for invalid image type", async () => {
+    const res = await request(app)
+      .get("/api/images/invalid/123");
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/invalid image type/i);
+  });
+
+  it("returns 404 when no images exist", async () => {
+    const res = await request(app)
+      .get("/api/images/user/999999");
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toMatch(/no images/i);
+  });
+});
+
 /**
  * Database error mocking tests
  */

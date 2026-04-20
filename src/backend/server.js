@@ -3,7 +3,7 @@ import bcrypt from "bcrypt";
 import { pool } from "./db.js";
 import jwt from "jsonwebtoken";
 import multer from "multer";
-import { mkdirSync } from "fs";
+import { mkdirSync, readdirSync, existsSync } from "fs";
 import { resolve, join } from "path";
 
 // For using env variables (i.e. JWT_SECRET for tokens)
@@ -12,6 +12,7 @@ dotenv.config();
 
 const app = express();
 app.use(express.json());
+app.use("/uploads", express.static(join(__dirname, "uploads"))); // serve upload folder so image file links work in browser
 
 /*
   Create a base user account 
@@ -564,6 +565,110 @@ app.get("/api/event_badges", async (req, res) => {
   }
 });
 
+// create an event category, to later be added to an event
+app.post("/api/event_categories", async (req, res) => {
+  try {
+    const { name } = req.body;
+
+    if (!name) {
+      console.log("No name for category")
+      return res.status(400).send("name is required.");
+    }
+
+    const result = await pool.query(
+      "INSERT INTO event_categories (name) VALUES ($1) RETURNING id",
+      [name]
+    );
+
+    res.json({ id: result.rows[0].id });
+  } catch (err) {
+
+    if (err.code === "23505") {
+      return res.status(400).send("Name must be unique")
+    }
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+// Retrieve all existing event categories
+app.get("/api/event_categories/:filter", async (req, res) => {
+  try {
+    const { filter } = req.params;
+
+    const result = await pool.query(
+      "SELECT * FROM event_categories WHERE name LIKE $1",
+      [`%${filter}%`]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+// Associate a category with an event, insert into the appropriate table
+// The event needs to be created before hitting this endpoint, so in order
+// for it to be used. The event_id has to already exist in the events table
+// the category_id also needs to already exist, so the badge has to be created already
+
+app.post("/api/event/add_categories", async (req, res) => {
+  try {
+    const { event_id, event_category_id } = req.body;
+
+    if (!event_id || !event_category_id) {
+      return res.status(400).send("event_id and event_category_id are required.");
+    }
+
+    await pool.query(
+      "INSERT INTO event_category_links (event_id, event_category_id) VALUES ($1, $2)",
+      [event_id, event_category_id]
+    );
+
+    res.status(201).send("Category attached to event successfully.");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+// Get all events in a particular zip code
+app.get("/api/events_by_zip/:zip_code", async (req, res) => {
+  try {
+    const { zip_code } = req.params;
+
+    const result = await pool.query(
+      `SELECT * FROM events WHERE zip_code = $1`,
+      [zip_code]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
+// Get all events associated with a particular category
+app.get("/api/events_by_cat/:category_id", async (req, res) => {
+  try {
+    const { category_id } = req.params;
+
+    const result = await pool.query(
+      `SELECT events.* FROM events 
+       JOIN event_category_links ON events.id = event_category_links.event_id
+       WHERE event_category_links.event_category_id = $1`,
+      [category_id]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
+});
+
 // Reward badges to those who came to the event, Gets the event_id
 // and gets all of the volunteers that came to the event, gets all of the badges
 // associated with the event. Give the badges to those who came
@@ -645,7 +750,7 @@ const storage = multer.diskStorage({
     // 1. Validate 'type' and throw a 400 if invalid
     const allowedTypes = { 'user': 'user', 'badge': 'badge' };
     const safeType = allowedTypes[strType];
-    
+
     if (!safeType) {
       const err = new Error('Unsupported uploadType');
       err.status = 400; // Forces Express error handler to return 400 instead of 500
@@ -664,7 +769,7 @@ const storage = multer.diskStorage({
 
     let basePath = resolve('./uploads');
     if (Array.isArray(basePath)) basePath = basePath[0];
-    
+
     try {
       const uploadPath = join(String(basePath), String(safeType), String(safeId));
 
@@ -681,7 +786,7 @@ const storage = multer.diskStorage({
     }
   },
   filename: function(req, file, cb) {
-    cb(null, file.fieldname);
+    cb(null, file.originalname);
   }
 });
 
@@ -778,5 +883,38 @@ app.post("/api/createBadge", async (req, res) => {
   }
 });
 
+app.get("/api/images/:type/:userId", (req, res) => {
+  try {
+    const { type, userId } = req.params;
+
+    if (!["user", "badge"].includes(type)) {
+      return res.status(400).json({ error: "Invalid image type" });
+    }
+
+    let basePath = resolve('./uploads');
+    const dirPath = join(basePath, type, userId);
+    console.log(`${dirPath}`);
+
+    if (!existsSync(dirPath)) {
+      console.log("Dir doesn't exist");
+      return res.status(404).json({ error: "No images found" });
+    }
+
+    const files = readdirSync(dirPath);
+
+    // filter dotfiles
+    const imageFiles = files.filter(file => !file.startsWith("."));
+
+    const fileUrls = imageFiles.map(file =>
+      `/uploads/${type}/${userId}/${file}`
+    );
+
+    res.json({ images: fileUrls });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to retrieve images" });
+  }
+});
 
 export default app;
