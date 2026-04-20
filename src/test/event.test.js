@@ -542,6 +542,235 @@ describe("Badge endpoints", () => {
   });
 });
 
+describe("POST /api/event_categories", () => {
+  it("creates category", async () => {
+    const unique = randomUUID();
+    const res = await request(app)
+      .post("/api/event_categories")
+      .send({ name: `Music${unique}` });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("id");
+  });
+
+  it("fails when category already exists", async () => {
+    const unique = randomUUID();
+    const res = await request(app)
+      .post("/api/event_categories")
+      .send({ name: `Music${unique}` });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("id");
+
+    const secondRes = await request(app)
+      .post("/api/event_categories")
+      .send({ name: `Music${unique}` });
+
+    expect(secondRes.status).toBe(400);
+  });
+
+  it("fails when name missing", async () => {
+    const res = await request(app)
+      .post("/api/event_categories")
+      .send({});
+
+    expect(res.status).toBe(400);
+  });
+});
+
+async function create_event() {
+  const unique = randomUUID();
+
+  // Create organization
+  const orgRes = await request(app)
+    .post("/api/registerOrg")
+    .send({
+      name: `org${unique}`,
+      email: `org${unique}@test.com`,
+      phone: "555-1111",
+      description: "Test organization",
+      password: "pass123",
+      category_id: 1,
+      zip_code: "14623"
+    });
+
+  expect(orgRes.statusCode).toBe(200);
+
+  // Create event
+  const eventRes = await request(app)
+    .post("/api/events")
+    .send({
+      organization_id: orgRes.body.id,
+      name: "List All Test Event",
+      description: "Testing event listing",
+      start_time: "2026-04-07T10:00:00Z",
+      end_time: "2026-04-07T12:00:00Z",
+      address: "100 Main St",
+      city: "Rochester",
+      state: "NY",
+      zip_code: "14623"
+    });
+
+  expect(eventRes.statusCode).toBe(200);
+  return eventRes;
+}
+
+describe("POST /api/event/add_categories", () => {
+  it("attaches category to event", async () => {
+    const unique = randomUUID();
+    // create category
+    const catRes = await request(app)
+      .post("/api/event_categories")
+      .send({ name: `AttachTest${unique}` });
+
+    const categoryId = catRes.body.id;
+
+    const eventRes = await create_event();
+    const eventId = eventRes.body.id;
+    console.log(`Adding Event Category, eventId = ${eventId}, catId = ${categoryId}`);
+
+    const res = await request(app)
+      .post("/api/event/add_categories")
+      .send({
+        event_id: eventId,
+        event_category_id: categoryId
+      });
+
+    expect(res.status).toBe(201);
+  });
+
+  it("fails with either id missing", async () => {
+    const unique = randomUUID();
+    // create category
+    const catRes = await request(app)
+      .post("/api/event_categories")
+      .send({ name: `AttachTest${unique}` });
+
+    const categoryId = catRes.body.id;
+
+    const eventRes = await create_event();
+    const eventId = eventRes.body.id;
+    console.log(`Adding Event Category, eventId = ${eventId}, catId = ${categoryId}`);
+
+    const res = await request(app)
+      .post("/api/event/add_categories")
+      .send({
+        event_category_id: categoryId
+      });
+
+    expect(res.status).toBe(400);
+
+    const secRes = await request(app)
+      .post("/api/event/add_categories")
+      .send({
+        event_id: eventId
+      });
+
+    expect(secRes.status).toBe(400);
+  });
+});
+
+describe("GET /api/events_by_zip/:zip_code", () => {
+  it("returns events for zip", async () => {
+    const eventRes = await create_event();
+
+    const res = await request(app)
+      .get("/api/events_by_zip/14623"); // search for the event we made
+
+    expect(res.status).toBe(200);
+    expect(res.body.length).toBeGreaterThan(0);
+  });
+
+  it("fails with no zip", async () => {
+    const eventRes = await create_event();
+
+    const res = await request(app)
+      .get("/api/events_by_zip/"); // search for the event we made
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns empty array if none found", async () => {
+    const res = await request(app)
+      .get("/api/events_by_zip/00000");
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+});
+
+describe("GET /api/events_by_cat/:category_id", () => {
+  it("returns events for category", async () => {
+    const unique = randomUUID();
+    // create category
+    const catRes = await request(app)
+      .post("/api/event_categories")
+      .send({ name: `CatTest${unique}` });
+
+    console.log(`Created category, ${catRes.statusCode}, ${catRes.body}`)
+    const categoryId = catRes.body.id;
+
+    const eventRes = await create_event();
+
+    const eventId = eventRes.body.id;
+
+    const catLinkRes = await request(app)
+      .post("/api/event/add_categories")
+      .send({
+        event_id: eventId,
+        event_category_id: categoryId
+      });
+
+    const res = await request(app)
+      .get(`/api/events_by_cat/${categoryId}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.length).toBeGreaterThan(0);
+  });
+
+  it("fails with no catId", async () => {
+    const eventRes = await create_event();
+
+    const res = await request(app)
+      .get("/api/events_by_cat/"); // search for the event we made
+
+    expect(res.status).toBe(404);
+  });
+
+  it("returns empty array if no matches", async () => {
+    const res = await request(app)
+      .get("/api/events_by_cat/999999");
+
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+});
+
+describe("GET /api/event_categories/:filter", () => {
+  it("returns categories matching filter", async () => {
+    const unique = randomUUID();
+    await request(app)
+      .post("/api/event_categories")
+      .send({ name: `MusicTest${unique}` });
+
+    const res = await request(app)
+      .get("/api/event_categories/Music");
+
+    expect(res.status).toBe(200);
+    expect(res.body.length).toBeGreaterThan(0);
+  });
+
+  it("returns empty array when no matches", async () => {
+    const res = await request(app)
+      .get("/api/event_categories/zzzzunlikely");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual([]);
+  });
+});
+
+
+
 /**
  * Database error mocking tests
  */
