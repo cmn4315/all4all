@@ -98,6 +98,9 @@ app.post("/api/registerVolunteer", async (req, res) => {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    const client = await pool.connect();
+    let transactionStarted = false;
+
     await client.query("BEGIN");
     transactionStarted = true;
 
@@ -128,7 +131,7 @@ app.post("/api/registerVolunteer", async (req, res) => {
     res.status(500).send("Database error");
 
   } finally {
-    client.release();
+    if(client) client.release();
   }
 });
 
@@ -240,23 +243,23 @@ app.get("/api/events/:id/badges", async (req, res) => {
   Create all new events as DRAFT first, user must explicitly set a different status later (PUBLISH, etc.)
 */
 app.post("/api/events", async (req, res) => {
+  const { organization_id, name, description, start_time, end_time, address, city, state, zip_code, color, recurrence } = req.body;
+
+  if (!organization_id || !name || !description || !start_time || !end_time || !zip_code) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+  if (new Date(end_time) <= new Date(start_time)) {
+    return res.status(400).json({ error: "end_time must be after start_time" });
+  }
+
   const client = await pool.connect();
 
   try {
-    const { organization_id, name, description, start_time, end_time, address, city, state, zip_code, color, recurrence } = req.body;
-
-    if (!organization_id || !name || !description || !start_time || !end_time || !zip_code) {
-      return res.status(400).json({ error: "Missing required fields" });
-    }
-    if (new Date(end_time) <= new Date(start_time)) {
-      return res.status(400).json({ error: "end_time must be after start_time" });
-    }
-
     const result = await client.query(
-    `INSERT INTO events (organization_id, name, description, start_time, end_time, address, city, state, zip_code, color, recurrence)
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
-    [organization_id, name, description, start_time, end_time, address, city, state, zip_code, color ?? "#15803d", recurrence || null]
-  );
+      `INSERT INTO events (organization_id, name, description, start_time, end_time, address, city, state, zip_code, color, recurrence)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
+      [organization_id, name, description, start_time, end_time, address, city, state, zip_code, color ?? "#15803d", recurrence || null]
+    );
 
     res.json({ id: result.rows[0].id });
 
