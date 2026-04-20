@@ -9,8 +9,11 @@ import path from "path";
 // Seed an org_category row so category_id is valid for all tests
 let categoryId;
 beforeAll(async () => {
+  await pool.query(
+    `INSERT INTO org_categories(name) VALUES('Test Category') ON CONFLICT (name) DO NOTHING`
+  );
   const result = await pool.query(
-    `INSERT INTO org_categories(name) VALUES('Test Category') RETURNING id`
+    `SELECT id FROM org_categories WHERE name = 'Test Category'`
   );
   categoryId = result.rows[0].id;
 });

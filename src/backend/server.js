@@ -95,10 +95,11 @@ app.post("/api/registerVolunteer", async (req, res) => {
     return res.status(400).json({ error: "Missing required fields" });
   }
 
-  const client = await pool.connect();
+  let client;
   let transactionStarted = false;
 
   try {
+    client = await pool.connect();
     await client.query("BEGIN");
     transactionStarted = true;
 
@@ -130,10 +131,11 @@ app.post("/api/registerVolunteer", async (req, res) => {
   Org needs name, email, phone, password, and a category id 
 */
 app.post("/api/registerOrg", async (req, res) => {
-  const client = await pool.connect();
+  let client;
   let transactionStarted = false;
 
   try {
+    client = await pool.connect();
     const { username, name, email, phone, description, password, category_id, zip_code, address, brand_colors } = req.body;
 
     await client.query("BEGIN");
@@ -193,8 +195,10 @@ app.get("/api/checkEmail", async (req, res) => {
 });
 
 app.post("/api/events/:id/checkin", async (req, res) => {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
+
     const { volunteer_id, time_in, time_out } = req.body;
     await client.query(
       `UPDATE event_registrations
@@ -242,9 +246,11 @@ app.post("/api/events", async (req, res) => {
     return res.status(400).json({ error: "end_time must be after start_time" });
   }
 
-  const client = await pool.connect();
+  let client;
 
   try {
+    client = await pool.connect();
+
     const result = await client.query(
       `INSERT INTO events (organization_id, name, description, start_time, end_time, address, city, state, zip_code, color, recurrence)
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,
@@ -406,8 +412,10 @@ app.get("/api/events/:id/volunteer-role/:volunteerId", async (req, res) => {
 });
 
 app.post("/api/events/:id/tags", async (req, res) => {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
+
     const { tags } = req.body; // array of category name strings
     const event_id = req.params.id;
 
@@ -774,11 +782,16 @@ app.get("/api/orgCategories", async (req, res) => {
 });
 
 app.get("/api/organizations/by-user/:userId", async (req, res) => {
-  const result = await pool.query(
-    "SELECT * FROM organizations WHERE user_id = $1", [req.params.userId]
-  );
-  if (result.rowCount === 0) return res.status(404).send("Not found");
-  res.json(result.rows[0]);
+  try {
+    const result = await pool.query(
+      "SELECT * FROM organizations WHERE user_id = $1", [req.params.userId]
+    );
+    if (result.rowCount === 0) return res.status(404).send("Not found");
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Database error");
+  }
 });
 
 
@@ -884,8 +897,9 @@ app.put("/api/volunteers/profile", async (req, res) => {
 
 // Save roles for an event (called after event is created/edited)
 app.post("/api/events/:id/roles", async (req, res) => {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
     const { roles } = req.body; // [{ name, spots }]
     const event_id = req.params.id;
 
@@ -932,8 +946,10 @@ app.get("/api/events/:id/roles", async (req, res) => {
 
 // Volunteer signs up for a specific role
 app.post("/api/roles/:id/register", async (req, res) => {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
+
     const { volunteer_id } = req.body;
     const role_id = req.params.id;
 
@@ -1010,8 +1026,10 @@ app.get("/api/roles/:id/volunteers", async (req, res) => {
 });
 
 app.post("/api/events/:id/badges", async (req, res) => {
-  const client = await pool.connect();
+  let client;
   try {
+    client = await pool.connect();
+
     const { badge_ids } = req.body; // array of badge IDs
     const event_id = req.params.id;
 

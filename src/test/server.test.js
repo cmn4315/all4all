@@ -930,3 +930,523 @@ describe("GET /api/phone", () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ─── 500 Error Coverage ───────────────────────────────────────────────────────
+
+describe("500 error handling", () => {
+  it("POST /api/registerVolunteer returns 500 on db error", async () => {
+    const client = mockClient();
+    client.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.post("/api/registerVolunteer").send({
+      username: "janedoe",
+      email: "jane@test.com",
+      password: "password123",
+      firstName: "Jane",
+      lastName: "Doe",
+      phone: "5855550001",
+    });
+
+    expect(res.status).toBe(500);
+  });
+
+  it("POST /api/registerOrg returns 500 on db error", async () => {
+    const client = mockClient();
+    client.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.post("/api/registerOrg").send({
+      username: "testorg",
+      name: "Test Org",
+      email: "org@test.com",
+      password: "password123",
+      category_id: 1,
+      zip_code: "14604",
+    });
+
+    expect(res.status).toBe(500);
+  });
+
+  it("POST /api/login returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.post("/api/login").send({
+      username: "janedoe",
+      password: "password123",
+    });
+
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/checkEmail returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/checkEmail").query({ email: "test@test.com" });
+    expect(res.status).toBe(500);
+  });
+
+  it("POST /api/events returns 500 on db error", async () => {
+    const client = mockClient();
+    client.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.post("/api/events").send({
+      organization_id: 1,
+      name: "Test Event",
+      description: "A test event",
+      start_time: "2026-06-01T09:00:00",
+      end_time: "2026-06-01T12:00:00",
+      zip_code: "14604",
+    });
+
+    expect(res.status).toBe(500);
+  });
+
+  it("PUT /api/events/:id returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.put("/api/events/1").send({
+      name: "Updated Event",
+      description: "Updated description",
+      start_time: "2026-06-01T09:00:00",
+      end_time: "2026-06-01T12:00:00",
+      zip_code: "14604",
+    });
+
+    expect(res.status).toBe(500);
+  });
+
+  it("PUT /api/events/:id/publish returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.put("/api/events/1/publish");
+    expect(res.status).toBe(500);
+  });
+
+  it("PUT /api/events/:id/cancel returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.put("/api/events/1/cancel");
+    expect(res.status).toBe(500);
+  });
+
+  it("DELETE /api/events/:id returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.delete("/api/events/1");
+    expect(res.status).toBe(500);
+  });
+
+  it("POST /api/events/:id/register returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.post("/api/events/1/register").send({ volunteer_id: 10 });
+    expect(res.status).toBe(500);
+  });
+
+  it("DELETE /api/events/:id/register returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.delete("/api/events/1/register").send({ volunteer_id: 10 });
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/events/:id/registrations returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/events/1/registrations");
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/events/:id/registrations/count returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/events/1/registrations/count");
+    expect(res.status).toBe(500);
+  });
+
+  it("POST /api/events/:id/checkin returns 500 on db error", async () => {
+    const client = mockClient();
+    client.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.post("/api/events/1/checkin").send({
+      volunteer_id: 10,
+      time_in: "2026-06-01T09:05:00",
+      time_out: null,
+    });
+
+    expect(res.status).toBe(500);
+  });
+
+  it("POST /api/events/:id/roles returns 500 on db error", async () => {
+    const client = mockClient();
+    client.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.post("/api/events/1/roles").send({
+      roles: [{ name: "Trail Cleaner", spots: 5 }],
+    });
+
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/events/:id/roles returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/events/1/roles");
+    expect(res.status).toBe(500);
+  });
+
+  it("POST /api/roles/:id/register returns 500 on db error", async () => {
+    const client = mockClient();
+    client.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.post("/api/roles/1/register").send({ volunteer_id: 10 });
+    expect(res.status).toBe(500);
+  });
+
+  it("DELETE /api/roles/:id/register returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.delete("/api/roles/1/register").send({ volunteer_id: 10 });
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/roles/:id/volunteers returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/roles/1/volunteers");
+    expect(res.status).toBe(500);
+  });
+
+  it("POST /api/events/:id/tags returns 500 on db error", async () => {
+    const client = mockClient();
+    client.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.post("/api/events/1/tags").send({ tags: ["Environment"] });
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/events/:id/tags returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/events/1/tags");
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/badges returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/badges");
+    expect(res.status).toBe(500);
+  });
+
+  it("POST /api/events/:id/badges returns 500 on db error", async () => {
+    const client = mockClient();
+    client.query.mockRejectedValueOnce(new Error("Database error"));
+
+
+    const res = await request.post("/api/events/1/badges").send({ badge_ids: [1, 2] });
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/events/:id/badges returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/events/1/badges");
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/volunteers/:id returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/volunteers/1");
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/volunteers/:id/badges returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/volunteers/10/badges");
+    expect(res.status).toBe(500);
+  });
+
+  it("POST /api/volunteers/:id/badges returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.post("/api/volunteers/10/badges").send({ badge_id: 1 });
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/volunteers/:id/registrations returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/volunteers/1/registrations");
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/volunteers/:id/past-events returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/volunteers/1/past-events");
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/volunteers/:id/service-hours returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/volunteers/1/service-hours");
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/volunteers/zip_code returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/volunteers/zip_code").query({ user_id: 1 });
+    expect(res.status).toBe(500);
+  });
+
+  it("PUT /api/volunteers/profile returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.put("/api/volunteers/profile").send({
+      user_id: 1,
+      firstName: "Jane",
+      lastName: "Doe",
+      zip_code: "14604",
+    });
+
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/organizations/:id returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/organizations/1");
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/organizations/:id/events returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/organizations/1/events");
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/organizations/:id/event-stats returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/organizations/1/event-stats");
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/organizations/zip_code returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/organizations/zip_code").query({ user_id: 1 });
+    expect(res.status).toBe(500);
+  });
+
+  it("PUT /api/organizations/profile returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.put("/api/organizations/profile").send({
+      user_id: 2,
+      name: "Updated Org",
+      zip_code: "14604",
+    });
+
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/orgCategories returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/orgCategories");
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/eventCategories returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/eventCategories");
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/full_name returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/full_name").query({ user_id: 1 });
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/phone returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/phone").query({ user_id: 1 });
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/events/:id/volunteer-role/:volunteerId returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/events/1/volunteer-role/10");
+    expect(res.status).toBe(500);
+  });
+
+  it("POST /api/users/:id/avatar returns 500 on db error", async () => {
+    // need a real-ish file for multer to not hang, but mock the db
+    const { Readable } = await import("stream");
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request
+      .post("/api/users/1/avatar")
+      .attach("image", Buffer.from("fake image"), "test.jpg");
+
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/organizations/by-user/:userId returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/organizations/by-user/1");
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/organizations/buisnessname returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/organizations/buisnessname").query({ user_id: 1 });
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/organizations/address returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/organizations/address").query({ user_id: 1 });
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/organizations/motto returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/organizations/motto").query({ user_id: 1 });
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/organizations/brand_colors returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/organizations/brand_colors").query({ user_id: 1 });
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/organizations/buisnessname returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/organizations/buisnessname").query({ user_id: 1 });
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/organizations/address returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/organizations/address").query({ user_id: 1 });
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/organizations/motto returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/organizations/motto").query({ user_id: 1 });
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/organizations/brand_colors returns 500 on db error", async () => {
+    pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+    const res = await request.get("/api/organizations/brand_colors").query({ user_id: 1 });
+    expect(res.status).toBe(500);
+  });
+
+  it("GET /api/organizations/address returns address", async () => {
+  pool.query.mockResolvedValueOnce({ rowCount: 1, rows: [{ address: "123 Main St" }] });
+
+  const res = await request.get("/api/organizations/address").query({ user_id: 1 });
+  expect(res.status).toBe(200);
+  expect(res.body.address).toBe("123 Main St");
+});
+
+it("GET /api/organizations/motto returns motto", async () => {
+  pool.query.mockResolvedValueOnce({ rowCount: 1, rows: [{ description: "Helping the community" }] });
+
+  const res = await request.get("/api/organizations/motto").query({ user_id: 1 });
+  expect(res.status).toBe(200);
+  expect(res.body.motto).toBe("Helping the community");
+});
+
+it("GET /api/organizations/brand_colors returns colors", async () => {
+  pool.query.mockResolvedValueOnce({ rowCount: 1, rows: [{ brand_colors: ["#15803d"] }] });
+
+  const res = await request.get("/api/organizations/brand_colors").query({ user_id: 1 });
+  expect(res.status).toBe(200);
+  expect(res.body.colors).toEqual(["#15803d"]);
+});
+it("POST /api/badges returns 400 when file is not PNG", async () => {
+  const res = await request
+    .post("/api/badges")
+    .attach("image", Buffer.from("fake jpg data"), { filename: "test.jpg", contentType: "image/jpeg" })
+    .field("name", "Test Badge")
+    .field("description", "A badge");
+
+  expect(res.status).toBeGreaterThanOrEqual(400);
+});
+
+it("POST /api/badges returns 500 on db error", async () => {
+  pool.query.mockRejectedValueOnce(new Error("Database error"));
+
+  const res = await request
+    .post("/api/badges")
+    .attach("image", Buffer.from("fake png data"), { filename: "test.png", contentType: "image/png" })
+    .field("name", "Test Badge")
+    .field("description", "A badge");
+
+  expect(res.status).toBe(500);
+});
+
+it("POST /api/events/:id/tags inserts tag when category exists", async () => {
+  const client = mockClient(
+    { rows: [] },           // DELETE existing links
+    { rows: [{ id: 1 }] }, // SELECT category — found
+    { rows: [] }            // INSERT into event_category_links
+  );
+
+  const res = await request.post("/api/events/1/tags").send({ tags: ["Environment"] });
+  expect(res.status).toBe(200);
+  expect(res.body.success).toBe(true);
+  expect(client.release).toHaveBeenCalled();
+});
+
+it("GET /api/organizations/buisnessname returns name", async () => {
+  pool.query.mockResolvedValueOnce({ rows: [{ name: "Test Org" }] });
+
+  const res = await request.get("/api/organizations/buisnessname").query({ user_id: 1 });
+  expect(res.status).toBe(200);
+  expect(res.body.name).toBe("Test Org");
+});
+});
+
+
+describe("POST /api/badges", () => {
+  it("creates a badge with an uploaded PNG file", async () => {
+    pool.query.mockResolvedValueOnce({
+      rows: [{ id: 1, name: "Test Badge", description: "A badge", image_url: "/uploads/badges/test.png" }],
+    });
+
+    const res = await request
+      .post("/api/badges")
+      .attach("image", Buffer.from("fake png data"), { filename: "test.png", contentType: "image/png" })
+      .field("name", "Test Badge")
+      .field("description", "A badge");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty("name", "Test Badge");
+  });
+});
