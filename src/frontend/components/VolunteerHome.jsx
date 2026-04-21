@@ -4,9 +4,22 @@ import "../styles/home.css";
 import logo from "../../assets/all4allLogo.png";
 
 
+// ─── URL safety helper ────────────────────────────────────────────────────────
+// Validates that a value is a safe positive integer before it is interpolated
+// into a fetch URL path. Returns the integer on success, or null on failure.
+// This satisfies SonarQube's "tainted data in URL path" rule by ensuring all
+// externally-sourced IDs (from API responses or localStorage) are sanitized
+// before use in client-side requests.
+function sanitizeId(value) {
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 && String(n) === String(value) ? n : null;
+}
+
 const API = {
   getVolunteer: async (userId) => {
-    const res = await fetch(`/api/volunteers/${userId}`);
+    const safeId = sanitizeId(userId);
+    if (!safeId) throw new Error("Invalid user ID");
+    const res = await fetch(`/api/volunteers/${safeId}`);
     if (!res.ok) throw new Error("Failed to fetch volunteer");
     return res.json();
   },
@@ -223,39 +236,50 @@ function EventDetailModal({
 
   useEffect(() => {
     if (!event?.id || !volunteerId || !registered) return;
-    fetch(`/api/events/${event.id}/volunteer-role/${volunteerId}`)
+    // Sanitize both IDs before interpolating into the URL path (Sonar L226)
+    const safeEventId = sanitizeId(event.id);
+    const safeVolunteerId = sanitizeId(volunteerId);
+    if (!safeEventId || !safeVolunteerId) return;
+    fetch(`/api/events/${safeEventId}/volunteer-role/${safeVolunteerId}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data?.role_id) setMyRoleId(data.role_id); })
-      .catch(() => {}); // FIX [1]: Don't log internal API errors to console
+      .catch(() => {});
   }, [event?.id, volunteerId, registered]);
 
   useEffect(() => {
     if (!event?.id) return;
-    fetch(`/api/events/${event.id}/registrations/count`)
+    // Sanitize event.id before using it in any URL path (Sonar L234, L239, L247)
+    const safeEventId = sanitizeId(event.id);
+    if (!safeEventId) return;
+
+    fetch(`/api/events/${safeEventId}/registrations/count`)
       .then(r => r.json())
       .then(data => setRegistrantCount(data.total))
-      .catch(() => {}); // FIX [1]
+      .catch(() => {});
 
-    fetch(`/api/events/${event.id}/roles`)
+    fetch(`/api/events/${safeEventId}/roles`)
       .then(r => r.json())
       .then(data => setRoles(data.map(r => ({
         ...r,
         spots_available: r.spots - parseInt(r.filled),
       }))))
-      .catch(() => {}); // FIX [1]
+      .catch(() => {});
 
-    fetch(`/api/events/${event.id}/badges`)
+    fetch(`/api/events/${safeEventId}/badges`)
       .then(r => r.json())
       .then(setEventBadges)
-      .catch(() => {}); // FIX [1]
+      .catch(() => {});
   }, [event?.id]);
 
   useEffect(() => {
     if (!event?.organization_id) return;
-    fetch(`/api/organizations/${event.organization_id}`)
+    // Sanitize organization_id before interpolating into URL path (Sonar L255)
+    const safeOrgId = sanitizeId(event.organization_id);
+    if (!safeOrgId) return;
+    fetch(`/api/organizations/${safeOrgId}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => setOrgData(data))
-      .catch(() => {}); // FIX [1]
+      .catch(() => {});
   }, [event?.organization_id]);
 
   const photos = event?.photos ?? [];
@@ -274,15 +298,21 @@ function EventDetailModal({
   }
 
   async function handleRegister() {
-    // FIX [5]: Validate volunteerId before making any API calls
     if (!volunteerId) {
       setRegisterError("Please log in to register.");
       return;
     }
 
     if (!registered && roles.length > 0 && selectedRoles.size === 0) {
-      // FIX [4]: Use inline error state instead of alert()
       setRegisterError("Please select a role before registering.");
+      return;
+    }
+
+    // Sanitize all externally-sourced IDs before URL construction
+    const safeEventId = sanitizeId(event.id);
+    const safeVolunteerId = sanitizeId(volunteerId);
+    if (!safeEventId || !safeVolunteerId) {
+      setRegisterError("Invalid event or volunteer ID. Please close and try again.");
       return;
     }
 
@@ -290,40 +320,45 @@ function EventDetailModal({
     setLoading(true);
     try {
       if (!registered) {
-        const res = await fetch(`/api/events/${event.id}/register`, {
+        const res = await fetch(`/api/events/${safeEventId}/register`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ volunteer_id: volunteerId }),
+          body: JSON.stringify({ volunteer_id: safeVolunteerId }),
         });
         if (!res.ok) throw new Error(await res.text());
 
         for (const roleId of selectedRoles) {
-          await fetch(`/api/roles/${roleId}/register`, {
+          const safeRoleId = sanitizeId(roleId);
+          if (!safeRoleId) continue;
+          await fetch(`/api/roles/${safeRoleId}/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ volunteer_id: volunteerId }),
+            body: JSON.stringify({ volunteer_id: safeVolunteerId }),
           });
         }
 
-        const updatedRoles = await fetch(`/api/events/${event.id}/roles`).then(r => r.json());
+        const updatedRoles = await fetch(`/api/events/${safeEventId}/roles`).then(r => r.json());
         setRoles(updatedRoles.map(r => ({ ...r, spots_available: r.spots - parseInt(r.filled) })));
 
         setRegistered(true);
         onRegisterChange?.(event.id, true);
       } else {
-        const res = await fetch(`/api/events/${event.id}/register`, {
+        const res = await fetch(`/api/events/${safeEventId}/register`, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ volunteer_id: volunteerId }),
+          body: JSON.stringify({ volunteer_id: safeVolunteerId }),
         });
         if (!res.ok) throw new Error(await res.text());
 
         if (myRoleId) {
-          await fetch(`/api/roles/${myRoleId}/register`, {
-            method: "DELETE",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ volunteer_id: volunteerId }),
-          }).catch(() => {});
+          const safeMyRoleId = sanitizeId(myRoleId);
+          if (safeMyRoleId) {
+            await fetch(`/api/roles/${safeMyRoleId}/register`, {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ volunteer_id: safeVolunteerId }),
+            }).catch(() => {});
+          }
         }
 
         setMyRoleId(null);
@@ -331,11 +366,10 @@ function EventDetailModal({
         setRegistered(false);
         onRegisterChange?.(event.id, false);
 
-        const updatedRoles = await fetch(`/api/events/${event.id}/roles`).then(r => r.json());
+        const updatedRoles = await fetch(`/api/events/${safeEventId}/roles`).then(r => r.json());
         setRoles(updatedRoles.map(r => ({ ...r, spots_available: r.spots - parseInt(r.filled) })));
       }
     } catch {
-      // FIX [1] & [4]: Don't console.error; show inline error instead
       setRegisterError("Something went wrong. Please try again.");
     } finally {
       setLoading(false);
@@ -893,25 +927,29 @@ export default function VolunteerHome() {
   }, []);
 
   useEffect(() => {
-    // FIX [3]: Check currentUser at the top of the effect and redirect immediately,
+    // Check currentUser at the top of the effect and redirect immediately,
     // before any async work, so the page never renders with null user data.
     if (!currentUser) { navigate("/"); return; }
 
-    API.getVolunteer(currentUser.id)
+    // Sanitize currentUser.id before using it in any URL path (Sonar L903, L907)
+    const safeUserId = sanitizeId(currentUser.id);
+    if (!safeUserId) { navigate("/"); return; }
+
+    API.getVolunteer(safeUserId)
       .then(v => {
         setVolunteer(v);
-        fetch(`/api/volunteers/${currentUser.id}/badges`)
+        fetch(`/api/volunteers/${safeUserId}/badges`)
           .then(r => r.json())
           .then(setBadges)
-          .catch(() => {}); // FIX [1]
-        return fetch(`/api/volunteers/${currentUser.id}/registrations`);
+          .catch(() => {});
+        return fetch(`/api/volunteers/${safeUserId}/registrations`);
       })
       .then(r => r.json())
       .then(data => {
         setMyRegisteredEvents(data);
         setMyRegistrations(new Set(data.map(ev => ev.id)));
       })
-      .catch(() => {}) // FIX [1]
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
