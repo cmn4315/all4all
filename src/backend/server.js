@@ -895,13 +895,14 @@ app.get("/api/images/:type/:userId", (req, res) => {
     }
 
     const match = userId.match(/^[a-zA-Z0-9-]+$/);
-    const safeId = match ? match : null;
+    const safeId = match ? match[0] : null;
 
     if (!safeId) {
       return res.status(400).json({ error: "invalid userID" })
     }
     let basePath = resolve('./uploads');
-    const dirPath = join(basePath, type, userId);
+    console.log(safeType, safeId);
+    const dirPath = join(basePath, safeType, safeId);
 
     if (!existsSync(dirPath)) {
       console.log("Dir doesn't exist");
