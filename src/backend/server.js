@@ -110,6 +110,7 @@ const imageUpload = multer({
     },
     filename: (req, file, cb) => cb(null, `image_${Date.now()}${path.extname(file.originalname)}`),
   }),
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
 const profileUpload = multer({
@@ -117,6 +118,7 @@ const profileUpload = multer({
     destination: "uploads/profiles/",
     filename: (req, file, cb) => cb(null, `profile_${Date.now()}${path.extname(file.originalname)}`),
   }),
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
 const badgeUpload = multer({
@@ -128,6 +130,7 @@ const badgeUpload = multer({
     if (file.mimetype === "image/png") cb(null, true);
     else cb(new Error("Only PNG files are allowed"));
   },
+  limits: { fileSize: 5 * 1024 * 1024 },
 });
 
 // ─── User / Auth ──────────────────────────────────────────────────────────────
