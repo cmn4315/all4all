@@ -150,7 +150,18 @@ const imageUpload = multer({
 const profileUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
-      const dir = path.join(UPLOADS_DIR, "profiles", req.params.id);
+      // Sanitize user-controlled param before any path construction
+      const safeId = String(req.params.id ?? "").replace(/[^0-9]/g, "");
+      if (!safeId) return cb(new Error("Invalid user ID"));
+
+      const base = path.resolve(UPLOADS_DIR, "profiles");
+      const dir  = path.resolve(base, safeId);
+
+      // Validate resolved path stays within profiles directory
+      if (!dir.startsWith(base + path.sep)) {
+        return cb(new Error("Invalid upload path"));
+      }
+
       mkdirSync(dir, { recursive: true });
       cb(null, dir);
     },
