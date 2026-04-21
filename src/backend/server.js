@@ -119,18 +119,21 @@ const imageUpload = multer({
       if (!ALLOWED_UPLOAD_TYPES.has(uploadType)) {
         return cb(new Error("Invalid upload type"));
       }
+
+      // Use trusted folder name, same as the read route
+      const safeFolder = TYPE_TO_FOLDER[uploadType];
+      if (!safeFolder) return cb(new Error("Invalid upload type"));
+
       const safeUserId = String(userId).replace(/[^0-9]/g, "");
       if (!safeUserId) return cb(new Error("Invalid user ID"));
 
       const base = path.resolve(__dirname, "uploads");
-      const dir  = path.resolve(base, uploadType, safeUserId);
+      const dir  = path.resolve(base, safeFolder, safeUserId);
 
-      // Verify the resolved path hasn't escaped the uploads directory
       if (!dir.startsWith(base + path.sep)) {
         return cb(new Error("Invalid upload path"));
       }
 
-      // dir is now fully validated — safe to use in mkdirSync and cb
       fs.mkdirSync(dir, { recursive: true });
       cb(null, dir);
     },
@@ -519,7 +522,9 @@ app.post("/api/users/:id/avatar", profileUpload.single("image"), async (req, res
 app.post("/api/upload_image", imageUpload.single("file"), (req, res) => {
   try {
     const { uploadType, userId } = req.body;
-    const fileUrl = `/uploads/${uploadType}/${userId}/${req.file.filename}`;
+    const safeFolder = TYPE_TO_FOLDER[uploadType];
+    const safeUserId = String(userId).replace(/[^0-9]/g, "");
+    const fileUrl = `/uploads/${safeFolder}/${safeUserId}/${req.file.filename}`;
     res.json({ url: fileUrl });
   } catch (err) {
     handleError(res, err);
@@ -852,8 +857,8 @@ app.get("/api/events/:id/badges", (req, res) =>
 // ─── Images ───────────────────────────────────────────────────────────────────
 
 const TYPE_TO_FOLDER = {
-  user:  "profiles",
-  badge: "badges",
+  user:  "user",
+  badge: "badge",
 };
 
 app.get("/api/images/:type/:userId", (req, res) => {
@@ -864,12 +869,16 @@ app.get("/api/images/:type/:userId", (req, res) => {
       return res.status(400).json({ error: "Invalid image type" });
     }
 
+    // Resolve folder name from trusted lookup FIRST, before any path construction
+    const safeFolder = TYPE_TO_FOLDER[type];
+    if (!safeFolder) return res.status(400).json({ error: "Invalid image type" });
+
     const safeUserId = userId.replace(/[^0-9]/g, "");
     if (!safeUserId) return res.status(400).json({ error: "Invalid user ID" });
 
-    // Resolve and confirm the path stays within the uploads base directory
+    // Build path using safeFolder (trusted) instead of type (user-controlled)
     const base    = join(__dirname, "uploads");
-    const dirPath = join(base, type, safeUserId);
+    const dirPath = join(base, safeFolder, safeUserId);
     if (!dirPath.startsWith(base + path.sep)) {
       return res.status(400).json({ error: "Invalid path" });
     }
@@ -877,9 +886,6 @@ app.get("/api/images/:type/:userId", (req, res) => {
     if (!existsSync(dirPath)) {
       return res.status(404).json({ error: "No images found" });
     }
-
-    const safeFolder = TYPE_TO_FOLDER[type];
-    if (!safeFolder) return res.status(400).json({ error: "Invalid image type" });
 
     const imageFiles = readdirSync(dirPath).filter(f => !f.startsWith("."));
     const fileUrls   = imageFiles.map(f => `/uploads/${safeFolder}/${safeUserId}/${f}`);

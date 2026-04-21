@@ -23,6 +23,37 @@ function fmtHours(h) {
   return n > 0 ? n.toFixed(1) : "0";
 }
 
+// ─── URL Safety Helpers ───────────────────────────────────────────────────────
+
+// Accepts only positive integers — rejects anything else (strings, floats, etc.)
+function sanitizeId(raw) {
+  const n = Number(raw);
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+const API_ROUTES = {
+  fullName: (id) => `/api/full_name?user_id=${id}`,
+  phone: (id) => `/api/phone?user_id=${id}`,
+  volunteerZip: (id) => `/api/volunteers/zip_code?user_id=${id}`,
+  orgZip: (id) => `/api/organizations/zip_code?user_id=${id}`,
+  orgByUser: (id) => `/api/organizations/by-user/${id}`,
+  orgProfile: (id) => `/api/organizations/profile?user_id=${id}`,
+  volunteerRegistrations:(id) => `/api/volunteers/${id}/registrations`,
+  volunteerPastEvents: (id) => `/api/volunteers/${id}/past-events`,
+  volunteerById: (id) => `/api/volunteers/${id}`,
+  volunteerBadges: (id) => `/api/volunteers/${id}/badges`,
+  serviceHours: (id) => `/api/volunteers/${id}/service-hours`,
+  orgEventStats: (id) => `/api/organizations/${id}/event-stats`,
+};
+
+function buildUrl(routeKey, id) {
+  const safeId = sanitizeId(id);
+  if (!safeId) throw new Error(`Invalid ID for route: ${routeKey}`);
+  const builder = API_ROUTES[routeKey];
+  if (!builder) throw new Error(`Unknown route key: ${routeKey}`);
+  return builder(safeId);
+}
+
 // ─── Volunteer Service Hours Panel ───────────────────────────────────────────
 function VolunteerServicePanel({ userId }) {
   const [rows, setRows] = useState([]);
@@ -33,10 +64,10 @@ function VolunteerServicePanel({ userId }) {
   const [toDate, setToDate] = useState("");
 
   useEffect(() => {
-    fetch(`/api/volunteers/${userId}/service-hours`)
+    fetch(buildUrl("serviceHours", userId))
       .then(r => r.json())
       .then(setRows)
-      .catch(() => {}); // FIX [5]: Don't log internal API errors to console
+      .catch(() => {});
   }, [userId]);
 
   const orgs = useMemo(() => ["All", ...new Set(rows.map(r => r.organization_name))], [rows]);
@@ -160,10 +191,10 @@ function OrgServicePanel({ orgId }) {
   const [metric, setMetric] = useState("hours");
 
   useEffect(() => {
-    fetch(`/api/organizations/${orgId}/event-stats`)
+    fetch(buildUrl("orgEventStats", orgId))
       .then(r => r.json())
       .then(setRows)
-      .catch(() => {}); // FIX [5]: Don't log internal API errors to console
+      .catch(() => {});
   }, [orgId]);
 
   const tags = useMemo(() => {
@@ -371,66 +402,68 @@ export default function ProfilePage() {
 
   const str = getPasswordStrength(newPass);
 
-  const zipUrl = isVolunteer
-      ? `/api/volunteers/zip_code?user_id=${user.id}`
-      : `/api/organizations/zip_code?user_id=${user.id}`;
-
   useEffect(() => {
     if (!user?.id) return;
+      const uid = sanitizeId(user.id);
+      if (!uid) return;
 
-    fetch(`/api/full_name?user_id=${user.id}`)
-      .then(r => r.json())
-      .then(data => {
-        setDisplayName(data.name);
-        if (isVolunteer) {
-          const [firstName, ...rest] = data.name.split(" ");
-          setForm(f => ({ ...f, firstName, lastName: rest.join(" ") }));
-        } else {
-          setForm(f => ({ ...f, name: data.name }));
-        }
-      }).catch(() => {}); // FIX [5]: Don't log internal API errors to console
-
-    fetch(`/api/phone?user_id=${user.id}`)
-      .then(r => r.json())
-      .then(data => setForm(f => ({ ...f, phone: data.phone })))
-      .catch(() => {}); // FIX [5]
-
-    fetch(zipUrl)
-      .then(r => r.json())
-      .then(data => setForm(f => ({ ...f, zip_code: data.zip_code || "" })))
-      .catch(() => {}); // FIX [5]
-
-    if (!isVolunteer) {
-      fetch(`/api/organizations/by-user/${user.id}`)
+      fetch(buildUrl("fullName", uid))
         .then(r => r.json())
-        .then(setOrg)
-        .catch(() => {}); // FIX [5]
+        .then(data => {
+          setDisplayName(data.name);
+          if (isVolunteer) {
+            const [firstName, ...rest] = data.name.split(" ");
+            setForm(f => ({ ...f, firstName, lastName: rest.join(" ") }));
+          } else {
+            setForm(f => ({ ...f, name: data.name }));
+          }
+        }).catch(() => {});
 
-      fetch(`/api/organizations/profile?user_id=${user.id}`)
+      fetch(buildUrl("phone", uid))
         .then(r => r.json())
-        .then(data => setForm(f => ({ 
-          ...f, 
-          address: data.address,
-          motto: data.motto,
-          brand_colors: data.brand_colors || []
-        })))
-        .catch(() => {}); // FIX [5]
-    }
+        .then(data => setForm(f => ({ ...f, phone: data.phone })))
+        .catch(() => {});
 
-    if (isVolunteer) {
-      fetch(`/api/volunteers/${user.id}/registrations`)
-        .then(r => r.json()).then(setRegisteredEvents).catch(() => {}); // FIX [5]
-
-      fetch(`/api/volunteers/${user.id}/past-events`)
-        .then(r => r.json()).then(setPastEvents).catch(() => {}); // FIX [5]
-
-      fetch(`/api/volunteers/${user.id}`)
+      fetch(buildUrl(isVolunteer ? "volunteerZip" : "orgZip", uid))
         .then(r => r.json())
-        .then(v => fetch(`/api/volunteers/${v.id}/badges`).then(r => r.json()))
-        .then(setVolunteerBadges)
-        .catch(() => {}); // FIX [5]
-    }
-  }, []);
+        .then(data => setForm(f => ({ ...f, zip_code: data.zip_code || "" })))
+        .catch(() => {});
+
+      if (!isVolunteer) {
+        fetch(buildUrl("orgByUser", uid))
+          .then(r => r.json())
+          .then(setOrg)
+          .catch(() => {});
+
+        fetch(buildUrl("orgProfile", uid))
+          .then(r => r.json())
+          .then(data => setForm(f => ({
+            ...f,
+            address: data.address,
+            motto: data.motto,
+            brand_colors: data.brand_colors || []
+          })))
+          .catch(() => {});
+      }
+
+      if (isVolunteer) {
+        fetch(buildUrl("volunteerRegistrations", uid))
+          .then(r => r.json()).then(setRegisteredEvents).catch(() => {});
+
+        fetch(buildUrl("volunteerPastEvents", uid))
+          .then(r => r.json()).then(setPastEvents).catch(() => {});
+
+        fetch(buildUrl("volunteerById", uid))
+          .then(r => r.json())
+          .then(v => {
+            const vid = sanitizeId(v.id);
+            if (!vid) return;
+            return fetch(buildUrl("volunteerBadges", vid)).then(r => r.json());
+          })
+          .then(badges => { if (badges) setVolunteerBadges(badges); })
+          .catch(() => {});
+      }
+    }, []);
 
   function set(key, value) {
     setForm(f => ({ ...f, [key]: value }));
