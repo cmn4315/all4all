@@ -110,7 +110,8 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
     await Promise.all(data.map(async r => {
       const safeVolunteerId = sanitizeId(r.volunteer_id);
       if (!safeVolunteerId) return;
-        const badges = await fetch(`/api/volunteers/${safeVolunteerId}/badges`).then(res => res.json());
+      const badges = await fetch(`/api/volunteers/${safeVolunteerId}/badges`).then(res => res.json());
+      earned[r.volunteer_id] = new Set(badges.map(b => b.name));
     }));
     setEarnedBadgesPerVolunteer(earned);
   }
@@ -367,7 +368,6 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
                           <input
                             type="datetime-local"
                             defaultValue={r.time_in ? r.time_in.slice(0, 16) : ""}
-                            // FIX: use state instead of mutating r directly
                             onChange={e => setTimeInputs(prev => ({ ...prev, [`${r.volunteer_id}_in`]: e.target.value }))}
                             style={{ padding: "5px 8px", borderRadius: 7, border: "1.5px solid #e2e8f0", fontSize: 12, fontFamily: "inherit", outline: "none" }}
                           />
@@ -377,6 +377,7 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
                             const safeEventId = sanitizeId(event.id);
                             const safeVolunteerId = sanitizeId(r.volunteer_id);
                             if (!safeEventId || !safeVolunteerId) return;
+
                             await fetch(`/api/events/${safeEventId}/checkin`, {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
@@ -417,20 +418,22 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
                             <input
                               type="datetime-local"
                               defaultValue={r.time_out ? r.time_out.slice(0, 16) : ""}
-                              // FIX: use state instead of mutating r directly
                               onChange={e => setTimeInputs(prev => ({ ...prev, [`${r.volunteer_id}_out`]: e.target.value }))}
                               style={{ padding: "5px 8px", borderRadius: 7, border: "1.5px solid #e2e8f0", fontSize: 12, fontFamily: "inherit", outline: "none" }}
                             />
                           </div>
                           <button
                             onClick={async () => {
-                              await fetch(`/api/events/${event.id}/checkin`, {
+                              const safeEventId = sanitizeId(event.id);
+                              const safeVolunteerId = sanitizeId(r.volunteer_id);
+                              if (!safeEventId || !safeVolunteerId) return;
+
+                              await fetch(`/api/events/${safeEventId}/checkin`, {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
-                                  volunteer_id: r.volunteer_id,
+                                  volunteer_id: safeVolunteerId,
                                   time_in: r.time_in || null,
-                                  // FIX: read from timeInputs state, not r._time_out
                                   time_out: timeInputs[`${r.volunteer_id}_out`] || r.time_out || new Date().toISOString(),
                                 }),
                               });
@@ -486,10 +489,11 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
                         {(selectedBadgesPerVolunteer[r.volunteer_id]?.size ?? 0) > 0 && (
                           <button
                             onClick={async () => {
+                              // FIX: sanitize volunteer ID once before the loop
+                              const safeVolunteerId = sanitizeId(r.volunteer_id);
+                              if (!safeVolunteerId) return;
                               const badgeIds = [...(selectedBadgesPerVolunteer[r.volunteer_id] ?? [])];
                               for (const badgeId of badgeIds) {
-                                const safeVolunteerId = sanitizeId(r.volunteer_id);
-                                if (!safeVolunteerId) return;
                                 await fetch(`/api/volunteers/${safeVolunteerId}/badges`, {
                                   method: "POST",
                                   headers: { "Content-Type": "application/json" },
@@ -606,9 +610,11 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
   }
   function removePhoto(idx) { setPhotos(prev => prev.filter((_, i) => i !== idx)); }
 
+  // FIX: sanitize event.id before using in fetch URL paths
   useEffect(() => {
-    if (!event?.id) return;
-    fetch(`/api/events/${event.id}/roles`)
+    const safeEventId = sanitizeId(event?.id);
+    if (!safeEventId) return;
+    fetch(`/api/events/${safeEventId}/roles`)
       .then(r => r.json())
       .then(data => {
         if (data.length > 0) setRoles(data.map(r => ({ id: r.id, name: r.name, spots: r.spots })));
@@ -628,14 +634,16 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
       .catch(console.error);
   }, []);
 
+  // FIX: sanitize event.id before using in fetch URL paths
   useEffect(() => {
-    if (!event?.id) return;
-    fetch(`/api/events/${event.id}/tags`)
+    const safeEventId = sanitizeId(event?.id);
+    if (!safeEventId) return;
+    fetch(`/api/events/${safeEventId}/tags`)
       .then(r => r.json())
       .then(data => setSelectedTags(new Set(data.map(t => t.name))))
       .catch(console.error);
 
-    fetch(`/api/events/${event.id}/badges`)
+    fetch(`/api/events/${safeEventId}/badges`)
       .then(r => r.json())
       .then(data => setSelectedBadges(new Set(data.map(b => b.id))))
       .catch(console.error);
@@ -664,8 +672,12 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
     setLoading(true);
     setSubmitErr(null);
     try {
+      // FIX: sanitize event.id before using in URL path
+      const safeEventId = isEdit ? sanitizeId(event.id) : null;
+      if (isEdit && !safeEventId) throw new Error("Invalid event ID");
+
       const payload = { organization_id: orgId, ...form };
-      const url    = isEdit ? `/api/events/${event.id}` : "/api/events";
+      const url    = isEdit ? `/api/events/${safeEventId}` : "/api/events";
       const method = isEdit ? "PUT" : "POST";
 
       const res = await fetch(url, {
@@ -675,7 +687,10 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
       });
       if (!res.ok) throw new Error("Failed to save event");
       const saved = await res.json();
-      const eventId = isEdit ? event.id : saved.id;
+
+      // FIX: sanitize the returned event ID before using in subsequent URL paths
+      const eventId = isEdit ? safeEventId : sanitizeId(saved.id);
+      if (!eventId) throw new Error("Invalid event ID returned from server");
 
       if (status === "PUBLISHED") {
         const pubRes = await fetch(`/api/events/${eventId}/publish`, { method: "PUT" });
@@ -1301,9 +1316,12 @@ export default function OrgHome() {
     setDeletingEvent(event);
   }
 
+  // FIX: sanitize deletingEvent.id before using in fetch URL path
   async function confirmDelete() {
+    const safeEventId = sanitizeId(deletingEvent.id);
+    if (!safeEventId) { setDeletingEvent(null); return; }
     try {
-      await fetch(`/api/events/${deletingEvent.id}`, { method: "DELETE" });
+      await fetch(`/api/events/${safeEventId}`, { method: "DELETE" });
       setMyEvents(prev => prev.filter(e => e.id !== deletingEvent.id));
       showToast("Event deleted.");
     } catch {

@@ -65,16 +65,20 @@ export default function SignIn({ onSwitch }) {
 
       const data = await res.json();
 
-      // Sanitize token — must be a non-empty string with no whitespace
-      const safeToken = typeof data.token === "string" ? data.token.trim() : null;
+      // Sanitize token — must be a non-empty string containing only safe
+      // base64url / JWT characters (letters, digits, _, -, .)
+      const TOKEN_RE = /^[A-Za-z0-9\-_.]+$/;
+      const rawToken = typeof data.token === "string" ? data.token.trim() : "";
+      const safeToken = TOKEN_RE.test(rawToken) ? rawToken : null;
 
       // Sanitize each user field individually
       const ALLOWED_ROLES = new Set(["VOLUNTEER", "ORGANIZATION"]);
+      const rawUser = data.user ?? {};
       const safeUser = {
-        id: Number.isInteger(data.user.id) ? data.user.id : null,
-        username: typeof data.user.username === "string" ? data.user.username.trim() : "",
-        email: typeof data.user.email === "string" ? data.user.email.trim() : "",
-        role: ALLOWED_ROLES.has(data.user.role) ? data.user.role : null,
+        id: Number.isInteger(rawUser.id) ? rawUser.id : null,
+        username: typeof rawUser.username === "string" ? rawUser.username.trim().replace(/[<>"']/g, "") : "",
+        email: typeof rawUser.email === "string" ? rawUser.email.trim().replace(/[<>"']/g, "") : "",
+        role: ALLOWED_ROLES.has(rawUser.role) ? rawUser.role : null,
       };
 
       if (!safeToken || !safeUser.id || !safeUser.role) {
@@ -83,8 +87,14 @@ export default function SignIn({ onSwitch }) {
         return;
       }
 
+      // Write only fully-validated, explicitly-constructed primitives to storage
       localStorage.setItem("token", safeToken);
-      localStorage.setItem("user", JSON.stringify(safeUser));
+      localStorage.setItem("user", JSON.stringify({
+        id: safeUser.id,
+        username: safeUser.username,
+        email: safeUser.email,
+        role: safeUser.role,
+      }));
 
       // Reset attempt counter on success
       setAttempts(0);
