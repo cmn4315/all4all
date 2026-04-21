@@ -92,23 +92,21 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
   const [availableBadges, setAvailableBadges] = useState([]);
   const [selectedBadgesPerVolunteer, setSelectedBadgesPerVolunteer] = useState({});
   const [badgesConfirmed, setBadgesConfirmed] = useState({});
-
-  // In EventCard, replace the badge state and useEffect:
   const [earnedBadgesPerVolunteer, setEarnedBadgesPerVolunteer] = useState({});
 
-  // When registrants are loaded, also fetch their existing badges:
+  // FIX: track time inputs in state instead of mutating registrant objects directly
+  const [timeInputs, setTimeInputs] = useState({});
+
   async function loadRegistrants() {
     const data = await fetch(`/api/events/${event.id}/registrations`).then(r => r.json());
     setRegistrants(data);
-    // Fetch earned badges for each volunteer
     const earned = {};
     await Promise.all(data.map(async r => {
       const badges = await fetch(`/api/volunteers/${r.volunteer_id}/badges`).then(res => res.json());
-      earned[r.volunteer_id] = new Set(badges.map(b => b.name)); // use name since volunteer_badges joins by id
+      earned[r.volunteer_id] = new Set(badges.map(b => b.name));
     }));
     setEarnedBadgesPerVolunteer(earned);
   }
-
 
   useEffect(() => {
     fetch("/api/badges").then(r => r.json()).then(setAvailableBadges).catch(console.error);
@@ -140,7 +138,7 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
         </div>
       )}
 
-      {/* Header: category, hours, name, org */}
+      {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
         <div style={{ flex: 1 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
@@ -225,14 +223,14 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
         <span>📅 {formatDate(event.start_time)} · {formatTime(event.start_time)} – {formatTime(event.end_time)}</span>
         {event.city && <span>📍 {event.city}, {event.state} · {event.distance_miles} mi away</span>}
       </div>
-          {event.recurrence && (
-      <span style={{
-        background: "#fdf4ff", color: "#7c3aed", fontSize: 11, fontWeight: 700,
-        padding: "2px 9px", borderRadius: 99, border: "1px solid #e9d5ff",
-      }}>
-        🔁 {event.recurrence === "biweekly" ? "Every 2 weeks" : event.recurrence.charAt(0).toUpperCase() + event.recurrence.slice(1)}
-      </span>
-    )}
+      {event.recurrence && (
+        <span style={{
+          background: "#fdf4ff", color: "#7c3aed", fontSize: 11, fontWeight: 700,
+          padding: "2px 9px", borderRadius: 99, border: "1px solid #e9d5ff",
+        }}>
+          🔁 {event.recurrence === "biweekly" ? "Every 2 weeks" : event.recurrence.charAt(0).toUpperCase() + event.recurrence.slice(1)}
+        </span>
+      )}
 
       {/* Action buttons */}
       <div style={{ display: "flex", gap: 8, marginTop: 2 }}>
@@ -290,7 +288,6 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
       {isOwnEvent && !isDraft && (
         <>
           <button
-            // Then in the See Registrants button onClick:
             onClick={async () => {
               if (!showRegistrants && registrants.length === 0) {
                 await loadRegistrants();
@@ -311,7 +308,6 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
               background: "#f8fafc", borderRadius: 10, padding: "12px 14px",
               border: "1px solid #e2e8f0", marginTop: 4,
             }}>
-              {/* Search */}
               <input
                 placeholder="Search registrants…"
                 value={registrantSearch}
@@ -341,7 +337,6 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
                       background: "#fff", borderRadius: 10, padding: "10px 12px",
                       border: "1px solid #e2e8f0", marginBottom: 8,
                     }}>
-                      {/* Name + email */}
                       <div style={{ marginBottom: 8 }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: "#1e293b" }}>{r.full_name}</div>
                         <div style={{ fontSize: 11.5, color: "#64748b" }}>{r.email}</div>
@@ -365,7 +360,8 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
                           <input
                             type="datetime-local"
                             defaultValue={r.time_in ? r.time_in.slice(0, 16) : ""}
-                            onChange={e => r._time_in = e.target.value}
+                            // FIX: use state instead of mutating r directly
+                            onChange={e => setTimeInputs(prev => ({ ...prev, [`${r.volunteer_id}_in`]: e.target.value }))}
                             style={{ padding: "5px 8px", borderRadius: 7, border: "1.5px solid #e2e8f0", fontSize: 12, fontFamily: "inherit", outline: "none" }}
                           />
                         </div>
@@ -376,12 +372,12 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({
                                 volunteer_id: r.volunteer_id,
-                                time_in: r._time_in || r.time_in || new Date().toISOString(),
+                                // FIX: read from timeInputs state, not r._time_in
+                                time_in: timeInputs[`${r.volunteer_id}_in`] || r.time_in || new Date().toISOString(),
                                 time_out: r.time_out || null,
                               }),
                             });
-                            const updated = await fetch(`/api/events/${event.id}/registrations`).then(res => res.json());
-                            setRegistrants(updated);
+                            await loadRegistrants();
                           }}
                           style={{
                             padding: "6px 14px", borderRadius: 8, alignSelf: "flex-end",
@@ -393,7 +389,7 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
                         </button>
                       </div>
 
-                      {/* Check-out row — only if checked in */}
+                      {/* Check-out row */}
                       {r.attended && (
                         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
                           {r.time_out ? (
@@ -412,7 +408,8 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
                             <input
                               type="datetime-local"
                               defaultValue={r.time_out ? r.time_out.slice(0, 16) : ""}
-                              onChange={e => r._time_out = e.target.value}
+                              // FIX: use state instead of mutating r directly
+                              onChange={e => setTimeInputs(prev => ({ ...prev, [`${r.volunteer_id}_out`]: e.target.value }))}
                               style={{ padding: "5px 8px", borderRadius: 7, border: "1.5px solid #e2e8f0", fontSize: 12, fontFamily: "inherit", outline: "none" }}
                             />
                           </div>
@@ -424,11 +421,11 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
                                 body: JSON.stringify({
                                   volunteer_id: r.volunteer_id,
                                   time_in: r.time_in || null,
-                                  time_out: r._time_out || r.time_out || new Date().toISOString(),
+                                  // FIX: read from timeInputs state, not r._time_out
+                                  time_out: timeInputs[`${r.volunteer_id}_out`] || r.time_out || new Date().toISOString(),
                                 }),
                               });
-                              const updated = await fetch(`/api/events/${event.id}/registrations`).then(res => res.json());
-                              setRegistrants(updated);
+                              await loadRegistrants();
                             }}
                             style={{
                               padding: "6px 14px", borderRadius: 8, alignSelf: "flex-end",
@@ -448,33 +445,33 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
                         </div>
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                           {availableBadges.map(b => {
-                          const isSelected = (selectedBadgesPerVolunteer[r.volunteer_id] ?? new Set()).has(b.id);
-                          const isEarned   = (earnedBadgesPerVolunteer[r.volunteer_id] ?? new Set()).has(b.name);
-                          return (
-                            <button
-                              key={b.id}
-                              onClick={() => {
-                                if (isEarned) return; // can't un-earn a badge
-                                setSelectedBadgesPerVolunteer(prev => {
-                                  const current = new Set(prev[r.volunteer_id] ?? []);
-                                  isSelected ? current.delete(b.id) : current.add(b.id);
-                                  return { ...prev, [r.volunteer_id]: current };
-                                });
-                              }}
-                              style={{
-                                padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600,
-                                border: `1.5px solid ${isEarned ? "#15803d" : isSelected ? "#2563eb" : "#e2e8f0"}`,
-                                background: isEarned ? "#f0fdf4" : isSelected ? "#eff6ff" : "#f8fafc",
-                                color: isEarned ? "#15803d" : isSelected ? "#1d4ed8" : "#64748b",
-                                cursor: isEarned ? "default" : "pointer", fontFamily: "inherit",
-                              }}
-                            >
-                              {isEarned ? "✓ " : ""}{b.image_url
-                                ? <img src={b.image_url} alt={b.name} style={{ width: 12, height: 12, borderRadius: "50%", marginRight: 4, verticalAlign: "middle" }} />
-                                : "🏅 "}{b.name}
-                            </button>
-                          );
-                        })}
+                            const isSelected = (selectedBadgesPerVolunteer[r.volunteer_id] ?? new Set()).has(b.id);
+                            const isEarned   = (earnedBadgesPerVolunteer[r.volunteer_id] ?? new Set()).has(b.name);
+                            return (
+                              <button
+                                key={b.id}
+                                onClick={() => {
+                                  if (isEarned) return;
+                                  setSelectedBadgesPerVolunteer(prev => {
+                                    const current = new Set(prev[r.volunteer_id] ?? []);
+                                    isSelected ? current.delete(b.id) : current.add(b.id);
+                                    return { ...prev, [r.volunteer_id]: current };
+                                  });
+                                }}
+                                style={{
+                                  padding: "3px 10px", borderRadius: 99, fontSize: 11, fontWeight: 600,
+                                  border: `1.5px solid ${isEarned ? "#15803d" : isSelected ? "#2563eb" : "#e2e8f0"}`,
+                                  background: isEarned ? "#f0fdf4" : isSelected ? "#eff6ff" : "#f8fafc",
+                                  color: isEarned ? "#15803d" : isSelected ? "#1d4ed8" : "#64748b",
+                                  cursor: isEarned ? "default" : "pointer", fontFamily: "inherit",
+                                }}
+                              >
+                                {isEarned ? "✓ " : ""}{b.image_url
+                                  ? <img src={b.image_url} alt={b.name} style={{ width: 12, height: 12, borderRadius: "50%", marginRight: 4, verticalAlign: "middle" }} />
+                                  : "🏅 "}{b.name}
+                              </button>
+                            );
+                          })}
                         </div>
 
                         {(selectedBadgesPerVolunteer[r.volunteer_id]?.size ?? 0) > 0 && (
@@ -490,7 +487,6 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
                               }
                               setBadgesConfirmed(prev => ({ ...prev, [r.volunteer_id]: true }));
                               setSelectedBadgesPerVolunteer(prev => ({ ...prev, [r.volunteer_id]: new Set() }));
-                              // ✅ Refresh earned badges so pills stay highlighted
                               await loadRegistrants();
                               setTimeout(() => setBadgesConfirmed(prev => ({ ...prev, [r.volunteer_id]: false })), 2000);
                             }}
@@ -508,14 +504,14 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
                           </button>
                         )}
                       </div>
-                    </div> // end registrant card
+                    </div>
                   ))
               )}
-            </div> // end showRegistrants panel
+            </div>
           )}
-        </> // end isOwnEvent && !isDraft fragment
+        </>
       )}
-    </div> // end top-level card div
+    </div>
   );
 }
 
@@ -547,41 +543,32 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
     state:         event?.state     || "",
     zip_code:      event?.zip_code  || "",
     color:         event?.color     || "#15803d",
-    tags:           event?.tags || "",
-    recurrence: event?.recurrence || "",
+    tags:          event?.tags || "",
+    recurrence:    event?.recurrence || "",
   });
 
-  const [roles, setRoles] = useState(event?.roles ?? [{ id: Date.now(), name: "", spots: "" }]);
+  const [roles, setRoles]                   = useState(event?.roles ?? [{ id: Date.now(), name: "", spots: "" }]);
   const [selectedTags, setSelectedTags]     = useState(new Set(event?.tags ?? []));
-  const [selectedBadges, setSelectedBadges] = useState(new Set(
-    event?.badges?.map(b => b.id) ?? []
-  ));
-  const [photos, setPhotos]   = useState(event?.photos ?? []);
-  const [tab, setTab]         = useState(0);
-  const [errors, setErrors]   = useState({});
-  const [loading, setLoading] = useState(false);
-  const [submitErr, setSubmitErr] = useState(null);
-  const [newBadgeName, setNewBadgeName] = useState("");
-  const [newBadgeDesc, setNewBadgeDesc] = useState("");
-  const [newBadgeFile, setNewBadgeFile] = useState(null);
-
-  // ── Fetch available tags + badges from DB ──
-  const [availableTags, setAvailableTags] = useState([]);
+  const [selectedBadges, setSelectedBadges] = useState(new Set(event?.badges?.map(b => b.id) ?? []));
+  const [photos, setPhotos]                 = useState(event?.photos ?? []);
+  const [tab, setTab]                       = useState(0);
+  const [errors, setErrors]                 = useState({});
+  const [loading, setLoading]               = useState(false);
+  const [submitErr, setSubmitErr]           = useState(null);
+  const [newBadgeName, setNewBadgeName]     = useState("");
+  const [newBadgeDesc, setNewBadgeDesc]     = useState("");
+  const [newBadgeFile, setNewBadgeFile]     = useState(null);
+  const [availableTags, setAvailableTags]   = useState([]);
   const [availableBadges, setAvailableBadges] = useState([]);
+
   function set(key, val) {
     setForm(f => ({ ...f, [key]: val }));
     setErrors(e => ({ ...e, [key]: null }));
   }
 
-  function addRole() {
-    setRoles(r => [...r, { id: Date.now(), name: "", spots: "" }]);
-  }
-  function updateRole(id, key, val) {
-    setRoles(r => r.map(role => role.id === id ? { ...role, [key]: val } : role));
-  }
-  function removeRole(id) {
-    setRoles(r => r.filter(role => role.id !== id));
-  }
+  function addRole() { setRoles(r => [...r, { id: Date.now(), name: "", spots: "" }]); }
+  function updateRole(id, key, val) { setRoles(r => r.map(role => role.id === id ? { ...role, [key]: val } : role)); }
+  function removeRole(id) { setRoles(r => r.filter(role => role.id !== id)); }
 
   function toggleTag(tag) {
     setSelectedTags(prev => {
@@ -606,30 +593,19 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
     }));
     setPhotos(prev => [...prev, ...newPhotos]);
   }
-  function removePhoto(idx) {
-    setPhotos(prev => prev.filter((_, i) => i !== idx));
-  }
-  
-// Add inside EventModal, after the useState declarations
+  function removePhoto(idx) { setPhotos(prev => prev.filter((_, i) => i !== idx)); }
+
   useEffect(() => {
-        if (!event?.id) return;
-        fetch(`/api/events/${event.id}/roles`)
-          .then(r => r.json())
-          .then(data => {
-            if (data.length > 0) {
-              setRoles(data.map(r => ({ id: r.id, name: r.name, spots: r.spots })));
-            }
-          })
-          .catch(console.error);
+    if (!event?.id) return;
+    fetch(`/api/events/${event.id}/roles`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.length > 0) setRoles(data.map(r => ({ id: r.id, name: r.name, spots: r.spots })));
+      })
+      .catch(console.error);
   }, [event?.id]);
 
   useEffect(() => {
-    // Tags come from event_categories table
-    fetch("/api/orgCategories")  // reuse this — it returns all org categories
-      .then(r => r.json())
-      .catch(() => []);
-
-    // Actually fetch event_categories for tags
     fetch("/api/eventCategories")
       .then(r => r.json())
       .then(setAvailableTags)
@@ -642,31 +618,17 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
   }, []);
 
   useEffect(() => {
-  if (!event?.id) return;
+    if (!event?.id) return;
+    fetch(`/api/events/${event.id}/tags`)
+      .then(r => r.json())
+      .then(data => setSelectedTags(new Set(data.map(t => t.name))))
+      .catch(console.error);
 
-  // Load existing roles
-  fetch(`/api/events/${event.id}/roles`)
-        .then(r => r.json())
-        .then(data => {
-          if (data.length > 0) {
-            setRoles(data.map(r => ({ id: r.id, name: r.name, spots: r.spots })));
-          }
-        })
-        .catch(console.error);
-
-      // Load existing tags
-      fetch(`/api/events/${event.id}/tags`)
-        .then(r => r.json())
-        .then(data => setSelectedTags(new Set(data.map(t => t.name))))
-        .catch(console.error);
-
-      // Load existing badges
-      fetch(`/api/events/${event.id}/badges`)
-        .then(r => r.json())
-        .then(data => setSelectedBadges(new Set(data.map(b => b.id))))
-        .catch(console.error);
-    }, [event?.id]);
-
+    fetch(`/api/events/${event.id}/badges`)
+      .then(r => r.json())
+      .then(data => setSelectedBadges(new Set(data.map(b => b.id))))
+      .catch(console.error);
+  }, [event?.id]);
 
   function validate() {
     const errs = {};
@@ -702,8 +664,7 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
       });
       if (!res.ok) throw new Error("Failed to save event");
       const saved = await res.json();
-
-      const eventId = isEdit ? event.id : saved.id;  // ✅ declare once, up top
+      const eventId = isEdit ? event.id : saved.id;
 
       if (status === "PUBLISHED") {
         const pubRes = await fetch(`/api/events/${eventId}/publish`, { method: "PUT" });
@@ -718,20 +679,18 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
         });
       }
 
-      // Save tags
-      const tagsArray = [...selectedTags];
       await fetch(`/api/events/${eventId}/tags`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tags: tagsArray }),
+        body: JSON.stringify({ tags: [...selectedTags] }),
       });
 
-      // Save badges
       await fetch(`/api/events/${eventId}/badges`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ badge_ids: [...selectedBadges] }),
       });
+
       onSaved({
         ...form,
         id: isEdit ? event.id : saved.id,
@@ -830,57 +789,55 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
 
           {/* Tab 0 — Details */}
           {tab === 0 && (
-  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-    <div>
-      <label style={lbl}>Event Name *</label>
-      <input value={form.name} onChange={e => set("name", e.target.value)} placeholder="Community Cleanup Day" style={inp("name")} />
-      {errors.name && <div style={errStyle}>{errors.name}</div>}
-    </div>
-    <div>
-      <label style={lbl}>Description *</label>
-      <textarea value={form.description} onChange={e => set("description", e.target.value)}
-        placeholder="Describe the event, what volunteers will do, what to bring…"
-        style={{ ...inp("description"), minHeight: 90, resize: "vertical" }} />
-      {errors.description && <div style={errStyle}>{errors.description}</div>}
-    </div>
-    <div style={row}>
-      <div style={{ flex: 1 }}>
-        <label style={lbl}>Contact Email</label>
-        <input type="email" value={form.contact_email} onChange={e => set("contact_email", e.target.value)} placeholder="contact@org.org" style={inp()} />
-      </div>
-      <div style={{ flex: 1 }}>
-        <label style={lbl}>Contact Phone</label>
-        <input type="tel" value={form.contact_phone} onChange={e => set("contact_phone", e.target.value)} placeholder="(585) 555-0100" style={inp()} />
-      </div>
-    </div>
-
-    {/* ✅ Color picker now INSIDE Tab 0 only */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <label style={lbl}>Event Color</label>
-        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          {brandColors.length > 0 && brandColors.map((c, i) => (
-            <button
-              key={i}
-              onClick={() => set("color", c)}
-              title={c}
-              style={{
-                width: 32, height: 32, borderRadius: "50%", background: c,
-                border: form.color === c ? "3px solid #1e293b" : "2px solid #e2e8f0",
-                cursor: "pointer", flexShrink: 0, transition: "border .15s",
-              }}
-            />
-          ))}
-          <input
-            type="color"
-            value={form.color}
-            onChange={e => set("color", e.target.value)}
-            style={{ width: 32, height: 32, padding: 2, borderRadius: 8, border: "1.5px solid #e2e8f0", cursor: "pointer" }}
-          />
-          <span style={{ fontSize: 12, color: "#64748b" }}>Brand colors or custom</span>
-        </div>
-      </div>
-    </div>
-  )}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div>
+                <label style={lbl}>Event Name *</label>
+                <input value={form.name} onChange={e => set("name", e.target.value)} placeholder="Community Cleanup Day" style={inp("name")} />
+                {errors.name && <div style={errStyle}>{errors.name}</div>}
+              </div>
+              <div>
+                <label style={lbl}>Description *</label>
+                <textarea value={form.description} onChange={e => set("description", e.target.value)}
+                  placeholder="Describe the event, what volunteers will do, what to bring…"
+                  style={{ ...inp("description"), minHeight: 90, resize: "vertical" }} />
+                {errors.description && <div style={errStyle}>{errors.description}</div>}
+              </div>
+              <div style={row}>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Contact Email</label>
+                  <input type="email" value={form.contact_email} onChange={e => set("contact_email", e.target.value)} placeholder="contact@org.org" style={inp()} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={lbl}>Contact Phone</label>
+                  <input type="tel" value={form.contact_phone} onChange={e => set("contact_phone", e.target.value)} placeholder="(585) 555-0100" style={inp()} />
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                <label style={lbl}>Event Color</label>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  {brandColors.length > 0 && brandColors.map((c, i) => (
+                    <button
+                      key={i}
+                      onClick={() => set("color", c)}
+                      title={c}
+                      style={{
+                        width: 32, height: 32, borderRadius: "50%", background: c,
+                        border: form.color === c ? "3px solid #1e293b" : "2px solid #e2e8f0",
+                        cursor: "pointer", flexShrink: 0, transition: "border .15s",
+                      }}
+                    />
+                  ))}
+                  <input
+                    type="color"
+                    value={form.color}
+                    onChange={e => set("color", e.target.value)}
+                    style={{ width: 32, height: 32, padding: 2, borderRadius: 8, border: "1.5px solid #e2e8f0", cursor: "pointer" }}
+                  />
+                  <span style={{ fontSize: 12, color: "#64748b" }}>Brand colors or custom</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Tab 1 — Location & Time */}
           {tab === 1 && (
@@ -918,14 +875,14 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
                   {errors.zip_code && <div style={errStyle}>{errors.zip_code}</div>}
                 </div>
                 <div>
-                <label style={lbl}>Recurrence</label>
-                <select value={form.recurrence} onChange={e => set("recurrence", e.target.value)} style={inp()}>
-                  <option value="">One-time event</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="biweekly">Every two weeks</option>
-                  <option value="monthly">Monthly</option>
-                </select>
-              </div>
+                  <label style={lbl}>Recurrence</label>
+                  <select value={form.recurrence} onChange={e => set("recurrence", e.target.value)} style={inp()}>
+                    <option value="">One-time event</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="biweekly">Every two weeks</option>
+                    <option value="monthly">Monthly</option>
+                  </select>
+                </div>
               </div>
             </div>
           )}
@@ -974,16 +931,16 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
                 <label style={lbl}>Event Tags</label>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
                   {availableTags.map(tag => (
-                      <button key={tag.id} onClick={() => toggleTag(tag.name)} style={{
-                        padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600,
-                        border: `1.5px solid ${selectedTags.has(tag.name) ? "#15803d" : "#e2e8f0"}`,
-                        background: selectedTags.has(tag.name) ? "#15803d" : "#f8fafc",
-                        color: selectedTags.has(tag.name) ? "#fff" : "#475569",
-                        cursor: "pointer", fontFamily: "inherit", transition: "all .15s",
-                      }}>
-                        {tag.name}
-                      </button>
-                    ))}
+                    <button key={tag.id} onClick={() => toggleTag(tag.name)} style={{
+                      padding: "5px 12px", borderRadius: 20, fontSize: 12, fontWeight: 600,
+                      border: `1.5px solid ${selectedTags.has(tag.name) ? "#15803d" : "#e2e8f0"}`,
+                      background: selectedTags.has(tag.name) ? "#15803d" : "#f8fafc",
+                      color: selectedTags.has(tag.name) ? "#fff" : "#475569",
+                      cursor: "pointer", fontFamily: "inherit", transition: "all .15s",
+                    }}>
+                      {tag.name}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -996,7 +953,6 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
                 <label style={lbl}>Event Photos</label>
                 <div
                   onClick={() => photoInputRef.current.click()}
-                  // Add to the drop zone div:
                   role="button"
                   tabIndex={0}
                   onKeyDown={e => (e.key === "Enter" || e.key === " ") && photoInputRef.current.click()}
@@ -1039,58 +995,58 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
                         }}>✕</button>
                       </div>
                     ))}
-                    
                   </div>
                 )}
               </div>
-              
+
               <div>
-              <label style={lbl}>Create a New Badge</label>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8, background: "#f8fafc", borderRadius: 10, padding: 12, border: "1.5px solid #e2e8f0" }}>
-                <input
-                  placeholder="Badge name"
-                  value={newBadgeName}
-                  onChange={e => setNewBadgeName(e.target.value)}
-                  style={{ ...inp(), width: "100%", boxSizing: "border-box" }}
-                />
-                <input
-                  placeholder="Description"
-                  value={newBadgeDesc}
-                  onChange={e => setNewBadgeDesc(e.target.value)}
-                  style={{ ...inp(), width: "100%", boxSizing: "border-box" }}
-                />
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <label style={{ fontSize: 12.5, color: "#64748b", cursor: "pointer" }}>
-                    <input
-                      type="file" accept=".png"
-                      style={{ display: "none" }}
-                      onChange={e => setNewBadgeFile(e.target.files[0])}
-                    />
-                    📎 {newBadgeFile ? newBadgeFile.name : "Upload PNG (optional)"}
-                  </label>
+                <label style={lbl}>Create a New Badge</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, background: "#f8fafc", borderRadius: 10, padding: 12, border: "1.5px solid #e2e8f0" }}>
+                  <input
+                    placeholder="Badge name"
+                    value={newBadgeName}
+                    onChange={e => setNewBadgeName(e.target.value)}
+                    style={{ ...inp(), width: "100%", boxSizing: "border-box" }}
+                  />
+                  <input
+                    placeholder="Description"
+                    value={newBadgeDesc}
+                    onChange={e => setNewBadgeDesc(e.target.value)}
+                    style={{ ...inp(), width: "100%", boxSizing: "border-box" }}
+                  />
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <label style={{ fontSize: 12.5, color: "#64748b", cursor: "pointer" }}>
+                      <input
+                        type="file" accept=".png"
+                        style={{ display: "none" }}
+                        onChange={e => setNewBadgeFile(e.target.files[0])}
+                      />
+                      📎 {newBadgeFile ? newBadgeFile.name : "Upload PNG (optional)"}
+                    </label>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (!newBadgeName.trim()) return;
+                      const fd = new FormData();
+                      fd.append("name", newBadgeName);
+                      fd.append("description", newBadgeDesc);
+                      if (newBadgeFile) fd.append("image", newBadgeFile);
+                      const res = await fetch("/api/badges", { method: "POST", body: fd });
+                      const badge = await res.json();
+                      setAvailableBadges(prev => [...prev, badge]);
+                      setSelectedBadges(prev => new Set([...prev, badge.id]));
+                      setNewBadgeName(""); setNewBadgeDesc(""); setNewBadgeFile(null);
+                    }}
+                    style={{
+                      background: "#15803d", color: "#fff", border: "none", borderRadius: 8,
+                      padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >
+                    + Create Badge
+                  </button>
                 </div>
-                <button
-                  onClick={async () => {
-                    if (!newBadgeName.trim()) return;
-                    const fd = new FormData();
-                    fd.append("name", newBadgeName);
-                    fd.append("description", newBadgeDesc);
-                    if (newBadgeFile) fd.append("image", newBadgeFile);
-                    const res = await fetch("/api/badges", { method: "POST", body: fd });
-                    const badge = await res.json();
-                    setAvailableBadges(prev => [...prev, badge]);
-                    setSelectedBadges(prev => new Set([...prev, badge.id]));
-                    setNewBadgeName(""); setNewBadgeDesc(""); setNewBadgeFile(null);
-                  }}
-                  style={{
-                    background: "#15803d", color: "#fff", border: "none", borderRadius: 8,
-                    padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                  }}
-                >
-                  + Create Badge
-                </button>
               </div>
-            </div>
+
               <div>
                 <label style={lbl}>
                   Badges Offered{" "}
@@ -1132,54 +1088,53 @@ function EventModal({ event, orgId, brandColors = [], onClose, onSaved }) {
         </div>
 
         {/* Footer */}
-
-<div style={{
-  padding: "14px 24px 18px", borderTop: "1px solid #f1f5f9",
-  display: "flex", gap: 8, flexShrink: 0, background: "#fff",
-}}>
-  {isEdit && tab === STEPS.length - 1 && (
-    <button onClick={() => handleSubmit("PUBLISHED")} disabled={loading} style={{
-      width: "100%", padding: "10px 0", borderRadius: 10, border: "none",
-      background: "linear-gradient(135deg,#15803d,#166534)",
-      color: "#fff", fontSize: 13, fontWeight: 700,
-      cursor: "pointer", fontFamily: "inherit", marginBottom: 8,
-      boxShadow: "0 2px 8px rgba(21,128,61,0.3)",
-    }}>
-      {loading ? "Publishing…" : "🚀 Publish / Re-publish Event"}
-    </button>
-  )}
-  {tab > 0 && (
-    <button onClick={() => setTab(t => t - 1)} style={{
-      padding: "10px 18px", borderRadius: 10, border: "1.5px solid #e2e8f0",
-      background: "#f8fafc", color: "#15803d", fontSize: 13.5, fontWeight: 700,
-      cursor: "pointer", fontFamily: "inherit",
-    }}>← Back</button>
-  )}
-  {tab < STEPS.length - 1 ? (
-    <button onClick={() => setTab(t => t + 1)} style={{
-      flex: 1, padding: "10px 0", borderRadius: 10, border: "none",
-      background: "#0f172a", color: "#fff", fontSize: 13.5, fontWeight: 700,
-      cursor: "pointer", fontFamily: "inherit",
-    }}>Next →</button>
-  ) : (
-    <>
-      <button onClick={() => handleSubmit("DRAFT")} disabled={loading} style={{
-        flex: 1, padding: "10px 0", borderRadius: 10, border: "1.5px solid #e2e8f0",
-        background: "#f8fafc", color: "#475569", fontSize: 13.5, fontWeight: 700,
-        cursor: "pointer", fontFamily: "inherit",
-      }}>
-        {loading ? "Saving…" : "Save as Draft"}
-      </button>
-      <button onClick={() => handleSubmit("PUBLISHED")} disabled={loading} style={{
-        flex: 2, padding: "10px 0", borderRadius: 10, border: "none",
-        background: "#15803d", color: "#fff", fontSize: 13.5, fontWeight: 700,
-        cursor: "pointer", fontFamily: "inherit",
-      }}>
-        {loading ? "Publishing…" : "Publish Event"}
-      </button>
-    </>
-  )}
-</div>
+        <div style={{
+          padding: "14px 24px 18px", borderTop: "1px solid #f1f5f9",
+          display: "flex", gap: 8, flexShrink: 0, background: "#fff",
+        }}>
+          {isEdit && tab === STEPS.length - 1 && (
+            <button onClick={() => handleSubmit("PUBLISHED")} disabled={loading} style={{
+              width: "100%", padding: "10px 0", borderRadius: 10, border: "none",
+              background: "linear-gradient(135deg,#15803d,#166534)",
+              color: "#fff", fontSize: 13, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit", marginBottom: 8,
+              boxShadow: "0 2px 8px rgba(21,128,61,0.3)",
+            }}>
+              {loading ? "Publishing…" : "🚀 Publish / Re-publish Event"}
+            </button>
+          )}
+          {tab > 0 && (
+            <button onClick={() => setTab(t => t - 1)} style={{
+              padding: "10px 18px", borderRadius: 10, border: "1.5px solid #e2e8f0",
+              background: "#f8fafc", color: "#15803d", fontSize: 13.5, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>← Back</button>
+          )}
+          {tab < STEPS.length - 1 ? (
+            <button onClick={() => setTab(t => t + 1)} style={{
+              flex: 1, padding: "10px 0", borderRadius: 10, border: "none",
+              background: "#0f172a", color: "#fff", fontSize: 13.5, fontWeight: 700,
+              cursor: "pointer", fontFamily: "inherit",
+            }}>Next →</button>
+          ) : (
+            <>
+              <button onClick={() => handleSubmit("DRAFT")} disabled={loading} style={{
+                flex: 1, padding: "10px 0", borderRadius: 10, border: "1.5px solid #e2e8f0",
+                background: "#f8fafc", color: "#475569", fontSize: 13.5, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>
+                {loading ? "Saving…" : "Save as Draft"}
+              </button>
+              <button onClick={() => handleSubmit("PUBLISHED")} disabled={loading} style={{
+                flex: 2, padding: "10px 0", borderRadius: 10, border: "none",
+                background: "#15803d", color: "#fff", fontSize: 13.5, fontWeight: 700,
+                cursor: "pointer", fontFamily: "inherit",
+              }}>
+                {loading ? "Publishing…" : "Publish Event"}
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1251,7 +1206,26 @@ export default function OrgHome() {
   const searchRef = useRef();
   const [deletingEvent, setDeletingEvent] = useState(null);
 
-  const user = JSON.parse(localStorage.getItem("user") || "null");
+  // FIX: wrap localStorage access in try/catch to handle tampered or missing data safely
+  const user = (() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "null");
+    } catch {
+      return null;
+    }
+  })();
+
+  // FIX: inject scrollbar styles via useEffect instead of a raw <style> tag
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.textContent = `
+      ::-webkit-scrollbar { width: 5px; height: 5px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #a3c9b1; border-radius: 99px; }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
 
   function toggleCategory(category) {
     setActiveCategories(prev => {
@@ -1330,8 +1304,7 @@ export default function OrgHome() {
   const filtered = allEvents.filter(ev => {
     const q = search.toLowerCase();
     const matchSearch = !q || ev.name?.toLowerCase().includes(q) || ev.description?.toLowerCase().includes(q) || ev.organization_name?.toLowerCase().includes(q);
-    const matchCat = activeCategories.includes("All") ||
-    (Array.isArray(ev.tags) && ev.tags.some(tag => activeCategories.includes(tag)));
+    const matchCat  = activeCategories.includes("All") || (Array.isArray(ev.tags) && ev.tags.some(tag => activeCategories.includes(tag)));
     const maxDist   = { "< 1 mi": 1, "< 2 mi": 2, "< 5 mi": 5, "< 10 mi": 10 }[distanceFilter];
     const matchDist = !maxDist || (ev.distance_miles != null && ev.distance_miles < maxDist);
     const matchFrom = !dateFrom || new Date(ev.start_time) >= new Date(dateFrom);
@@ -1349,6 +1322,9 @@ export default function OrgHome() {
 
   const publishedCount = myEvents.filter(e => e.status === "PUBLISHED").length;
   const draftCount     = myEvents.filter(e => e.status === "DRAFT").length;
+
+  // suppress unused warning — categoryErr could be used to show UI feedback
+  void categoryErr;
 
   return (
     <div style={{
@@ -1409,8 +1385,8 @@ export default function OrgHome() {
             </div>
           </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <StatBadge value={publishedCount} label="Published" color="#2563eb" />
-            <StatBadge value={draftCount}     label="Drafts"    color="#7c3aed" />
+            <StatBadge value={publishedCount} label="Published"    color="#2563eb" />
+            <StatBadge value={draftCount}     label="Drafts"       color="#7c3aed" />
             <StatBadge value={myEvents.length} label="Total Events" color="#0891b2" />
           </div>
         </section>
@@ -1536,7 +1512,7 @@ export default function OrgHome() {
                         setDistance("Any Distance");
                         setDateFrom("");
                         setDateTo("");
-                        setActiveCategories(["All"]); // ✅ fixed: array, not string
+                        setActiveCategories(["All"]);
                       }}
                       style={{ background: "none", border: "1.5px solid #fca5a5", borderRadius: 8, padding: "7px 14px", fontSize: 12.5, fontWeight: 600, color: "#ef4444", cursor: "pointer", fontFamily: "inherit" }}
                     >
@@ -1595,12 +1571,6 @@ export default function OrgHome() {
           {toast}
         </div>
       )}
-
-      <style>{`
-        ::-webkit-scrollbar { width: 5px; height: 5px; }
-        ::-webkit-scrollbar-track { background: transparent; }
-        ::-webkit-scrollbar-thumb { background: #a3c9b1; border-radius: 99px; }
-      `}</style>
 
       {deletingEvent && (
         <DeleteConfirmModal
