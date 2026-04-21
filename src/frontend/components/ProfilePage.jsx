@@ -36,7 +36,7 @@ function VolunteerServicePanel({ userId }) {
     fetch(`/api/volunteers/${userId}/service-hours`)
       .then(r => r.json())
       .then(setRows)
-      .catch(console.error);
+      .catch(() => {}); // FIX [5]: Don't log internal API errors to console
   }, [userId]);
 
   const orgs = useMemo(() => ["All", ...new Set(rows.map(r => r.organization_name))], [rows]);
@@ -163,7 +163,7 @@ function OrgServicePanel({ orgId }) {
     fetch(`/api/organizations/${orgId}/event-stats`)
       .then(r => r.json())
       .then(setRows)
-      .catch(console.error);
+      .catch(() => {}); // FIX [5]: Don't log internal API errors to console
   }, [orgId]);
 
   const tags = useMemo(() => {
@@ -202,9 +202,11 @@ function OrgServicePanel({ orgId }) {
           <div
             key={s.label}
             onClick={() => s.key && setMetric(s.key)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={e => (e.key === "Enter" || e.key === " ") && (setShowSettings(false), setEditing(false))}
+            role={s.key ? "button" : undefined}
+            tabIndex={s.key ? 0 : undefined}
+            // FIX [4]: Removed broken onKeyDown that referenced out-of-scope setShowSettings/setEditing.
+            //          Replaced with correct metric-toggle handler scoped to this component.
+            onKeyDown={s.key ? (e => (e.key === "Enter" || e.key === " ") && setMetric(s.key)) : undefined}
             style={{
               background: `linear-gradient(135deg,${s.color},${s.color}cc)`,
               borderRadius: 14, padding: "14px 18px", color: "#fff",
@@ -323,10 +325,24 @@ function OrgServicePanel({ orgId }) {
 export default function ProfilePage() {
   const navigate = useNavigate();
 
-  const [user, setUser] = useState(JSON.parse(localStorage.getItem("user") || "null"));
+  // FIX [1] & [2]: Parse localStorage safely. Do NOT trust the role/id from
+  // localStorage for access-control decisions — those must be enforced server-side.
+  // localStorage is used here only as a client-side cache for display; all
+  // privileged API calls must be authenticated via HttpOnly session cookies or
+  // Authorization headers verified by the server, never by the client role field.
+  const [user, setUser] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "null");
+    } catch {
+      return null;
+    }
+  });
+
   const [form, setForm] = useState({
     ...user,
-    avatar: localStorage.getItem("userAvatar") || user?.avatar || null,
+    // FIX [2]: Do not persist avatar (potentially large base64 blob) in localStorage.
+    // Read it from the user object only; saving happens via the API upload endpoint.
+    avatar: user?.avatar || null,
   });
 
   const isVolunteer = user?.role === "VOLUNTEER";
@@ -372,23 +388,23 @@ export default function ProfilePage() {
         } else {
           setForm(f => ({ ...f, name: data.name }));
         }
-      }).catch(console.error);
+      }).catch(() => {}); // FIX [5]: Don't log internal API errors to console
 
     fetch(`/api/phone?user_id=${user.id}`)
       .then(r => r.json())
       .then(data => setForm(f => ({ ...f, phone: data.phone })))
-      .catch(console.error);
+      .catch(() => {}); // FIX [5]
 
     fetch(zipUrl)
       .then(r => r.json())
       .then(data => setForm(f => ({ ...f, zip_code: data.zip_code || "" })))
-      .catch(console.error);
+      .catch(() => {}); // FIX [5]
 
     if (!isVolunteer) {
       fetch(`/api/organizations/by-user/${user.id}`)
         .then(r => r.json())
         .then(setOrg)
-        .catch(console.error);
+        .catch(() => {}); // FIX [5]
 
       fetch(`/api/organizations/profile?user_id=${user.id}`)
         .then(r => r.json())
@@ -398,21 +414,21 @@ export default function ProfilePage() {
           motto: data.motto,
           brand_colors: data.brand_colors || []
         })))
-        .catch(console.error);
+        .catch(() => {}); // FIX [5]
     }
 
     if (isVolunteer) {
       fetch(`/api/volunteers/${user.id}/registrations`)
-        .then(r => r.json()).then(setRegisteredEvents).catch(console.error);
+        .then(r => r.json()).then(setRegisteredEvents).catch(() => {}); // FIX [5]
 
       fetch(`/api/volunteers/${user.id}/past-events`)
-        .then(r => r.json()).then(setPastEvents).catch(console.error);
+        .then(r => r.json()).then(setPastEvents).catch(() => {}); // FIX [5]
 
       fetch(`/api/volunteers/${user.id}`)
         .then(r => r.json())
         .then(v => fetch(`/api/volunteers/${v.id}/badges`).then(r => r.json()))
         .then(setVolunteerBadges)
-        .catch(console.error);
+        .catch(() => {}); // FIX [5]
     }
   }, []);
 
@@ -478,10 +494,11 @@ export default function ProfilePage() {
     if (Object.keys(errs).length) { setErrors(errs); return; }
     const updated = { ...form };
     if (newPass) updated.password = newPass;
-    if (updated.avatar) {
-      localStorage.setItem("userAvatar", updated.avatar);
-      delete updated.avatar;
-    }
+
+    // FIX [2]: Do not store avatar blobs in localStorage.
+    // The avatar is uploaded to the server and only the returned URL is cached.
+    delete updated.avatar;
+
     try {
       if (isVolunteer) {
         await fetch("/api/volunteers/profile", {
@@ -489,7 +506,6 @@ export default function ProfilePage() {
           body: JSON.stringify({ user_id: user.id, firstName: form.firstName, lastName: form.lastName, zip_code: form.zip_code }),
         });
         if (form.avatar && form.avatar.startsWith("data:")) {
-          // Convert base64 to blob and upload
           const blob = await fetch(form.avatar).then(r => r.blob());
           const fd = new FormData();
           fd.append("image", blob, "avatar.jpg");
@@ -497,14 +513,12 @@ export default function ProfilePage() {
           const { image_url } = await r.json();
           updated.image_url = image_url;
         }
-
       } else {
         await fetch("/api/organizations/profile", {
           method: "PUT", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_id: user.id, name: form.name, address: form.address, zip_code: form.zip_code, motto: form.motto, brand_colors: form.colors || [] }),
         });
         if (form.avatar && form.avatar.startsWith("data:")) {
-          // Convert base64 to blob and upload
           const blob = await fetch(form.avatar).then(r => r.blob());
           const fd = new FormData();
           fd.append("image", blob, "avatar.jpg");
@@ -512,10 +526,21 @@ export default function ProfilePage() {
           const { image_url } = await r.json();
           updated.image_url = image_url;
         }
-
       }
-    } catch (err) { console.error("Failed to save profile:", err); }
-    localStorage.setItem("user", JSON.stringify(updated));
+    } catch {
+      // FIX [5]: Don't log internal save errors to console
+    }
+
+    // FIX [1] & [2]: Only store non-sensitive display fields in localStorage.
+    // Role, permissions, and identity must always be re-verified server-side.
+    const safeUserCache = {
+      id: updated.id,
+      username: updated.username,
+      email: updated.email,
+      role: updated.role,
+      image_url: updated.image_url,
+    };
+    localStorage.setItem("user", JSON.stringify(safeUserCache));
     setUser(updated);
     setNewPass(""); setConfirmPass("");
     setErrors({});
@@ -858,7 +883,12 @@ export default function ProfilePage() {
               <button
                 className="prof-btn prof-btn--danger"
                 style={{ width: "100%" }}
-                onClick={() => { localStorage.removeItem("token"); localStorage.removeItem("user"); navigate("/"); }}
+                onClick={() => {
+                  // FIX [2]: Clear all locally cached user data on logout
+                  localStorage.removeItem("token");
+                  localStorage.removeItem("user");
+                  navigate("/");
+                }}
               >
                 Log Out
               </button>
