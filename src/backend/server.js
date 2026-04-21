@@ -87,7 +87,10 @@ async function withClient(res, fn) {
 }
 
 // Returns zip_code for a table keyed by user_id
+const ALLOWED_TABLES = new Set(["volunteers", "organizations"]);
+
 async function getZipCode(res, table, user_id) {
+  if (!ALLOWED_TABLES.has(table)) return res.status(400).json({ zip_code: null });
   try {
     if (!user_id) return res.status(400).json({ zip_code: null });
     const result = await pool.query(`SELECT zip_code FROM ${table} WHERE user_id = $1`, [user_id]);
@@ -100,15 +103,30 @@ async function getZipCode(res, table, user_id) {
 
 // ─── Multer Setup ─────────────────────────────────────────────────────────────
 
+const ALLOWED_UPLOAD_TYPES = new Set(["user", "badge"]);
+const ALLOWED_IMAGE_EXTS   = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
+
+function safeExt(originalname) {
+  const ext = path.extname(originalname).toLowerCase();
+  return ALLOWED_IMAGE_EXTS.has(ext) ? ext : ".bin";
+}
+
 const imageUpload = multer({
   storage: multer.diskStorage({
     destination: (req, file, cb) => {
       const { uploadType, userId } = req.body;
-      const dir = join(__dirname, "uploads", uploadType, userId);
+
+      if (!ALLOWED_UPLOAD_TYPES.has(uploadType)) {
+        return cb(new Error("Invalid upload type"));
+      }
+      const safeUserId = String(userId).replace(/[^0-9]/g, "");
+      if (!safeUserId) return cb(new Error("Invalid user ID"));
+
+      const dir = join(__dirname, "uploads", uploadType, safeUserId);
       fs.mkdirSync(dir, { recursive: true });
       cb(null, dir);
     },
-    filename: (req, file, cb) => cb(null, `image_${Date.now()}${path.extname(file.originalname)}`),
+    filename: (req, file, cb) => cb(null, `image_${Date.now()}${safeExt(file.originalname)}`),
   }),
   limits: { fileSize: 5 * 1024 * 1024 },
 });
@@ -116,7 +134,7 @@ const imageUpload = multer({
 const profileUpload = multer({
   storage: multer.diskStorage({
     destination: "uploads/profiles/",
-    filename: (req, file, cb) => cb(null, `profile_${Date.now()}${path.extname(file.originalname)}`),
+    filename: (req, file, cb) => cb(null, `profile_${Date.now()}${safeExt(file.originalname)}`),
   }),
   limits: { fileSize: 5 * 1024 * 1024 },
 });
@@ -124,7 +142,7 @@ const profileUpload = multer({
 const badgeUpload = multer({
   storage: multer.diskStorage({
     destination: "uploads/badges/",
-    filename: (req, file, cb) => cb(null, `badge_${Date.now()}${path.extname(file.originalname)}`),
+    filename: (req, file, cb) => cb(null, `badge_${Date.now()}${safeExt(file.originalname)}`),
   }),
   fileFilter: (req, file, cb) => {
     if (file.mimetype === "image/png") cb(null, true);
@@ -825,23 +843,30 @@ app.get("/api/events/:id/badges", (req, res) =>
 
 // ─── Images ───────────────────────────────────────────────────────────────────
 
+const TYPE_TO_FOLDER = {
+  user:  "profiles",
+  badge: "badges",
+};
+
 app.get("/api/images/:type/:userId", (req, res) => {
   try {
     const { type, userId } = req.params;
 
-    if (!["user", "badge"].includes(type)) {
+    if (!ALLOWED_UPLOAD_TYPES.has(type)) {
       return res.status(400).json({ error: "Invalid image type" });
     }
 
-    const basePath = join(__dirname, "uploads");
-    const dirPath = join(basePath, type, userId);
+    const safeUserId = userId.replace(/[^0-9]/g, "");
+    if (!safeUserId) return res.status(400).json({ error: "Invalid user ID" });
+
+    const dirPath = join(__dirname, "uploads", type, safeUserId);
 
     if (!existsSync(dirPath)) {
       return res.status(404).json({ error: "No images found" });
     }
 
-    const imageFiles = readdirSync(dirPath).filter(file => !file.startsWith("."));
-    const fileUrls = imageFiles.map(file => `/uploads/${type}/${userId}/${file}`);
+    const imageFiles = readdirSync(dirPath).filter(f => !f.startsWith("."));
+    const fileUrls = imageFiles.map(f => `/uploads/${type}/${safeUserId}/${f}`);
 
     res.json({ images: fileUrls });
   } catch (err) {

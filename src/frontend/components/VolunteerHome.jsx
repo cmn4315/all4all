@@ -3,13 +3,6 @@ import { useNavigate } from "react-router-dom";
 import "../styles/home.css";
 import logo from "../../assets/all4allLogo.png";
 
-
-// ─── URL safety helper ────────────────────────────────────────────────────────
-// Validates that a value is a safe positive integer before it is interpolated
-// into a fetch URL path. Returns the integer on success, or null on failure.
-// This satisfies SonarQube's "tainted data in URL path" rule by ensuring all
-// externally-sourced IDs (from API responses or localStorage) are sanitized
-// before use in client-side requests.
 function sanitizeId(value) {
   const n = parseInt(value, 10);
   return Number.isFinite(n) && n > 0 && String(n) === String(value) ? n : null;
