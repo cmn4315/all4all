@@ -125,11 +125,11 @@ const imageUpload = multer({
         return cb(new Error("Invalid upload type"));
       }
 
-      // Use trusted folder name, same as the read route
       const safeFolder = TYPE_TO_FOLDER[uploadType];
       if (!safeFolder) return cb(new Error("Invalid upload type"));
 
-      const safeUserId = String(userId).replace(/[^0-9]/g, "");
+      // Sanitize BEFORE any path construction (fixes L154-155)
+      const safeUserId = String(userId ?? "").replace(/[^0-9]/g, "");
       if (!safeUserId) return cb(new Error("Invalid user ID"));
 
       const base = path.resolve(__dirname, "uploads");
@@ -543,21 +543,27 @@ app.get("/api/users/:id/avatar", async (req, res) => {
 
 app.delete("/api/users/:id/avatar", async (req, res) => {
   try {
-    // Get current image path before clearing it
-    const result = await pool.query("SELECT image_url FROM users WHERE id = $1", [req.params.id]);
+    // Sanitize user-controlled param before any path construction (fixes L560)
+    const safeId = String(req.params.id).replace(/[^0-9]/g, "");
+    if (!safeId) return res.status(400).json({ error: "Invalid user ID" });
+
+    const result = await pool.query("SELECT image_url FROM users WHERE id = $1", [safeId]);
     if (result.rowCount === 0) return res.status(404).json({ error: "User not found" });
 
     const image_url = result.rows[0].image_url;
 
-    // Clear from DB
-    await pool.query("UPDATE users SET image_url = NULL WHERE id = $1", [req.params.id]);
+    await pool.query("UPDATE users SET image_url = NULL WHERE id = $1", [safeId]);
 
-    // Delete file from disk if it exists
     if (image_url) {
-      const filename = image_url.split("/uploads/profiles/")[1];
-      if (filename) {
-        const filePath = path.join(UPLOADS_DIR, "profiles", req.params.id, filename);
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      const filename = path.basename(image_url); // use basename, never trust full path from DB
+      if (filename && filename !== ".") {
+        const base     = path.resolve(UPLOADS_DIR, "profiles");
+        const filePath = path.resolve(base, safeId, filename);
+
+        // Validate resolved path stays within UPLOADS_DIR (fixes L560 existence check)
+        if (filePath.startsWith(base + path.sep) && fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
       }
     }
 
