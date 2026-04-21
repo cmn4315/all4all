@@ -71,7 +71,6 @@ export default function SignIn({ onSwitch }) {
 
       const data = await res.json();
 
-      const TOKEN_RE = /^[A-Za-z0-9\-_.]+$/;
       const rawToken = typeof data.token === "string" ? data.token.trim() : "";
       const safeToken = TOKEN_RE.test(rawToken) ? rawToken : null;
 

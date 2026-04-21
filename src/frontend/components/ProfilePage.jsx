@@ -526,37 +526,39 @@ export default function ProfilePage() {
   async function handleSave() {
     const errs = validate();
     if (Object.keys(errs).length) { setErrors(errs); return; }
+
+    // Sanitize user.id once here — used for all fetch calls below
+    const safeUid = sanitizeId(user.id);
+    if (!safeUid) return;
+
     const updated = { ...form };
     if (newPass) updated.password = newPass;
-
-    // FIX [2]: Do not store avatar blobs in localStorage.
-    // The avatar is uploaded to the server and only the returned URL is cached.
     delete updated.avatar;
 
     try {
       if (isVolunteer) {
         await fetch("/api/volunteers/profile", {
           method: "PUT", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: user.id, firstName: form.firstName, lastName: form.lastName, zip_code: form.zip_code }),
+          body: JSON.stringify({ user_id: safeUid, firstName: form.firstName, lastName: form.lastName, zip_code: form.zip_code }),
         });
         if (form.avatar && form.avatar.startsWith("data:")) {
           const blob = await fetch(form.avatar).then(r => r.blob());
           const fd = new FormData();
           fd.append("image", blob, "avatar.jpg");
-          const r = await fetch(buildUrl("userAvatar", user.id), { method: "POST", body: fd });
+          const r = await fetch(buildUrl("userAvatar", safeUid), { method: "POST", body: fd });
           const { image_url } = await r.json();
           updated.image_url = image_url;
         }
       } else {
         await fetch("/api/organizations/profile", {
           method: "PUT", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: user.id, name: form.name, address: form.address, zip_code: form.zip_code, motto: form.motto, brand_colors: form.colors || [] }),
+          body: JSON.stringify({ user_id: safeUid, name: form.name, address: form.address, zip_code: form.zip_code, motto: form.motto, brand_colors: form.colors || [] }),
         });
         if (form.avatar && form.avatar.startsWith("data:")) {
           const blob = await fetch(form.avatar).then(r => r.blob());
           const fd = new FormData();
           fd.append("image", blob, "avatar.jpg");
-          const r = await fetch(buildUrl("userAvatar", user.id), { method: "POST", body: fd });
+          const r = await fetch(buildUrl("userAvatar", safeUid), { method: "POST", body: fd });
           const { image_url } = await r.json();
           updated.image_url = image_url;
         }
@@ -568,14 +570,14 @@ export default function ProfilePage() {
     // FIX [1] & [2]: Only store non-sensitive display fields in localStorage.
     // Role, permissions, and identity must always be re-verified server-side.
     const safeUserCache = {
-      id: sanitizeId(updated.id),
+      id: safeUid,
       username: typeof updated.username === "string" ? updated.username.trim().replace(/[<>"']/g, "") : "",
       email: typeof updated.email === "string" ? updated.email.trim().replace(/[<>"']/g, "") : "",
       role: ["VOLUNTEER", "ORGANIZATION"].includes(updated.role) ? updated.role : null,
       image_url: typeof updated.image_url === "string" ? updated.image_url.trim() : null,
     };
 
-    if (!safeUserCache.id || !safeUserCache.role) return; // don't persist invalid state
+    if (!safeUserCache.id || !safeUserCache.role) return;
 
     localStorage.setItem("user", JSON.stringify(safeUserCache));
     setUser(updated);
