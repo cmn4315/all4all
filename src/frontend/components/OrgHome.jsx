@@ -4,6 +4,10 @@ import logo from "../../assets/all4allLogo.png";
 
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+function sanitizeId(value) {
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) && n > 0 && String(n) === String(value) ? n : null;
+}
 function initials(name = "") {
   return name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 }
@@ -98,12 +102,15 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
   const [timeInputs, setTimeInputs] = useState({});
 
   async function loadRegistrants() {
-    const data = await fetch(`/api/events/${event.id}/registrations`).then(r => r.json());
+    const safeEventId = sanitizeId(event.id);
+    if (!safeEventId) return;
+    const data = await fetch(`/api/events/${safeEventId}/registrations`).then(r => r.json());
     setRegistrants(data);
     const earned = {};
     await Promise.all(data.map(async r => {
-      const badges = await fetch(`/api/volunteers/${r.volunteer_id}/badges`).then(res => res.json());
-      earned[r.volunteer_id] = new Set(badges.map(b => b.name));
+      const safeVolunteerId = sanitizeId(r.volunteer_id);
+      if (!safeVolunteerId) return;
+        const badges = await fetch(`/api/volunteers/${safeVolunteerId}/badges`).then(res => res.json());
     }));
     setEarnedBadgesPerVolunteer(earned);
   }
@@ -367,12 +374,14 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
                         </div>
                         <button
                           onClick={async () => {
-                            await fetch(`/api/events/${event.id}/checkin`, {
+                            const safeEventId = sanitizeId(event.id);
+                            const safeVolunteerId = sanitizeId(r.volunteer_id);
+                            if (!safeEventId || !safeVolunteerId) return;
+                            await fetch(`/api/events/${safeEventId}/checkin`, {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({
-                                volunteer_id: r.volunteer_id,
-                                // FIX: read from timeInputs state, not r._time_in
+                                volunteer_id: safeVolunteerId,
                                 time_in: timeInputs[`${r.volunteer_id}_in`] || r.time_in || new Date().toISOString(),
                                 time_out: r.time_out || null,
                               }),
@@ -479,7 +488,9 @@ function EventCard({ event, isOwnEvent, onEdit, onDelete }) {
                             onClick={async () => {
                               const badgeIds = [...(selectedBadgesPerVolunteer[r.volunteer_id] ?? [])];
                               for (const badgeId of badgeIds) {
-                                await fetch(`/api/volunteers/${r.volunteer_id}/badges`, {
+                                const safeVolunteerId = sanitizeId(r.volunteer_id);
+                                if (!safeVolunteerId) return;
+                                await fetch(`/api/volunteers/${safeVolunteerId}/badges`, {
                                   method: "POST",
                                   headers: { "Content-Type": "application/json" },
                                   body: JSON.stringify({ badge_id: badgeId }),
@@ -1253,7 +1264,9 @@ export default function OrgHome() {
 
   useEffect(() => {
     if (!user) { navigate("/"); return; }
-    fetch(`/api/organizations/by-user/${user.id}`)
+    const safeUserId = sanitizeId(user.id);
+    if (!safeUserId) { navigate("/"); return; }
+    fetch(`/api/organizations/by-user/${safeUserId}`)
       .then(r => r.json())
       .then(setOrg)
       .catch(console.error)
@@ -1261,8 +1274,9 @@ export default function OrgHome() {
   }, []);
 
   useEffect(() => {
-    if (!org?.id) return;
-    fetch(`/api/organizations/${org.id}/events`)
+    const safeOrgId = sanitizeId(org?.id);
+    if (!safeOrgId) return;
+    fetch(`/api/organizations/${safeOrgId}/events`)
       .then(r => r.json())
       .then(setMyEvents)
       .catch(() => setMyEvents([]));
