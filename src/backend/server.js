@@ -122,7 +122,15 @@ const imageUpload = multer({
       const safeUserId = String(userId).replace(/[^0-9]/g, "");
       if (!safeUserId) return cb(new Error("Invalid user ID"));
 
-      const dir = join(__dirname, "uploads", uploadType, safeUserId);
+      const base = path.resolve(__dirname, "uploads");
+      const dir  = path.resolve(base, uploadType, safeUserId);
+
+      // Verify the resolved path hasn't escaped the uploads directory
+      if (!dir.startsWith(base + path.sep)) {
+        return cb(new Error("Invalid upload path"));
+      }
+
+      // dir is now fully validated — safe to use in mkdirSync and cb
       fs.mkdirSync(dir, { recursive: true });
       cb(null, dir);
     },
@@ -859,14 +867,19 @@ app.get("/api/images/:type/:userId", (req, res) => {
     const safeUserId = userId.replace(/[^0-9]/g, "");
     if (!safeUserId) return res.status(400).json({ error: "Invalid user ID" });
 
-    const dirPath = join(__dirname, "uploads", type, safeUserId);
+    // Resolve and confirm the path stays within the uploads base directory
+    const base    = join(__dirname, "uploads");
+    const dirPath = join(base, type, safeUserId);
+    if (!dirPath.startsWith(base + path.sep)) {
+      return res.status(400).json({ error: "Invalid path" });
+    }
 
     if (!existsSync(dirPath)) {
       return res.status(404).json({ error: "No images found" });
     }
 
     const imageFiles = readdirSync(dirPath).filter(f => !f.startsWith("."));
-    const fileUrls = imageFiles.map(f => `/uploads/${type}/${safeUserId}/${f}`);
+    const fileUrls   = imageFiles.map(f => `/uploads/${type}/${safeUserId}/${f}`);
 
     res.json({ images: fileUrls });
   } catch (err) {
