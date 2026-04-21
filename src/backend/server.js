@@ -878,8 +878,11 @@ app.get("/api/images/:type/:userId", (req, res) => {
       return res.status(404).json({ error: "No images found" });
     }
 
+    const safeFolder = TYPE_TO_FOLDER[type];
+    if (!safeFolder) return res.status(400).json({ error: "Invalid image type" });
+
     const imageFiles = readdirSync(dirPath).filter(f => !f.startsWith("."));
-    const fileUrls   = imageFiles.map(f => `/uploads/${type}/${safeUserId}/${f}`);
+    const fileUrls   = imageFiles.map(f => `/uploads/${safeFolder}/${safeUserId}/${f}`);
 
     res.json({ images: fileUrls });
   } catch (err) {
