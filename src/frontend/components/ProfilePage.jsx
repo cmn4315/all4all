@@ -563,7 +563,7 @@ export default function ProfilePage() {
       } else {
         await fetch("/api/organizations/profile", {
           method: "PUT", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ user_id: safeUid, name: form.name, address: form.address, zip_code: form.zip_code, motto: form.motto, brand_colors: form.colors || [] }),
+          body: JSON.stringify({ user_id: safeUid, name: form.name, address: form.address, zip_code: form.zip_code, motto: form.motto, brand_colors: form.brand_colors || [] }),
         });
         if (safeAvatar) {
           const blob = await fetch(safeAvatar).then(r => r.blob());
@@ -680,11 +680,11 @@ export default function ProfilePage() {
         <div className="a4a-field">
           <label className="a4a-label">Brand Colors (up to 4)</label>
           {editing
-            ? <ColorWheelPicker selectedColors={form.colors || []} onChange={c => set("colors", c)} />
+            ? <ColorWheelPicker selectedColors={form.brand_colors || []} onChange={c => set("colors", c)} />
             : (
               <div className="prof-colors-row">
-                {form.colors?.length
-                  ? form.colors.map(c => (
+                {form.brand_colors?.length
+                  ? form.brand_colors.map(c => (
                     <div key={c} className="prof-color-chip">
                       <span className="prof-color-chip__swatch" style={{ background: c }} />
                       <span className="prof-color-chip__hex">{c}</span>
