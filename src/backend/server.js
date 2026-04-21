@@ -887,13 +887,21 @@ app.get("/api/images/:type/:userId", (req, res) => {
   try {
     const { type, userId } = req.params;
 
-    if (!["user", "badge"].includes(type)) {
+    const allowedTypes = { 'user': 'user', 'badge': 'badge' };
+    const safeType = allowedTypes[type];
+
+    if (!safeType) {
       return res.status(400).json({ error: "Invalid image type" });
     }
 
+    const match = userId.match(/^[a-zA-Z0-9-]+$/);
+    const safeId = match ? match : null;
+
+    if (!safeId) {
+      return res.status(400).json({ error: "invalid userID" })
+    }
     let basePath = resolve('./uploads');
     const dirPath = join(basePath, type, userId);
-    console.log(`${dirPath}`);
 
     if (!existsSync(dirPath)) {
       console.log("Dir doesn't exist");
