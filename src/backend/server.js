@@ -935,16 +935,13 @@ app.get("/api/images/:type/:userId", (req, res) => {
     if (!ALLOWED_UPLOAD_TYPES.has(type)) {
       return res.status(400).json({ error: "Invalid image type" });
     }
-
-    // Resolve folder name from trusted lookup FIRST, before any path construction
     const safeFolder = TYPE_TO_FOLDER[type];
     if (!safeFolder) return res.status(400).json({ error: "Invalid image type" }); /* v8 ignore next */
 
     const safeUserId = userId.replace(/[^0-9]/g, "");
     if (!safeUserId) return res.status(400).json({ error: "Invalid user ID" });
 
-    // Build path using safeFolder (trusted) instead of type (user-controlled)
-    const base    = join(__dirname, "uploads");
+    const base = join(__dirname, "uploads");
     const dirPath = join(base, safeFolder, safeUserId);
     if (!dirPath.startsWith(base + path.sep)) {
       return res.status(400).json({ error: "Invalid path" });
